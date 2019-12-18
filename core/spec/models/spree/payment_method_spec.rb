@@ -1,18 +1,36 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::PaymentMethod, type: :model do
-  let!(:payment_method_nil_display)  { create(:payment_method, active: true,
-                                              available_to_users: true,
-                                              available_to_admin: true) }
-  let!(:payment_method_both_display) { create(:payment_method, active: true,
-                                              available_to_users: true,
-                                              available_to_admin: true) }
-  let!(:payment_method_front_display){ create(:payment_method, active: true,
-                                              available_to_users: true,
-                                              available_to_admin: false) }
-  let!(:payment_method_back_display) { create(:payment_method, active: true,
-                                              available_to_users: false,
-                                              available_to_admin: true) }
+require 'rails_helper'
+
+RSpec.describe Spree::PaymentMethod, type: :model do
+  let!(:payment_method_nil_display) do
+    create(:payment_method, {
+      active: true,
+      available_to_users: true,
+      available_to_admin: true
+    })
+  end
+  let!(:payment_method_both_display) do
+    create(:payment_method, {
+      active: true,
+      available_to_users: true,
+      available_to_admin: true
+    })
+  end
+  let!(:payment_method_front_display) do
+    create(:payment_method, {
+      active: true,
+      available_to_users: true,
+      available_to_admin: false
+    })
+  end
+  let!(:payment_method_back_display) do
+    create(:payment_method, {
+      active: true,
+      available_to_users: false,
+      available_to_admin: true
+    })
+  end
 
   describe "available_to_[<users>, <admin>, <store>]" do
     context "when searching for payment methods available to users and admins" do
@@ -21,14 +39,20 @@ describe Spree::PaymentMethod, type: :model do
       it { is_expected.to contain_exactly(payment_method_both_display, payment_method_nil_display) }
 
       context "with a store" do
-        let!(:extra_payment_method_both_display) { create(:payment_method, active: true,
-                                                    available_to_users: true,
-                                                    available_to_admin: true) }
+        let!(:extra_payment_method_both_display) do
+          create(:payment_method, {
+            active: true,
+            available_to_users: true,
+            available_to_admin: true
+          })
+        end
         let!(:store_1) do
-          create(:store, payment_methods:[payment_method_nil_display,
-                                          payment_method_both_display,
-                                          payment_method_front_display,
-                                          payment_method_back_display])
+          create(:store, payment_methods: [
+            payment_method_nil_display,
+            payment_method_both_display,
+            payment_method_front_display,
+            payment_method_back_display
+          ])
         end
 
         subject { Spree::PaymentMethod.available_to_store( store_1 ).available_to_users.available_to_admin }
@@ -38,7 +62,7 @@ describe Spree::PaymentMethod, type: :model do
         context "when the store has no payment methods" do
           subject { Spree::PaymentMethod.available_to_store(store_without_payment_methods) }
           let!(:store_without_payment_methods) do
-            create(:store, payment_methods:[])
+            create(:store, payment_methods: [])
           end
 
           it "returns all payment methods" do
@@ -65,7 +89,7 @@ describe Spree::PaymentMethod, type: :model do
     context "when searching for payment methods available to admin" do
       subject { Spree::PaymentMethod.available_to_admin }
 
-      it { is_expected.to contain_exactly(payment_method_back_display, payment_method_both_display, payment_method_nil_display)}
+      it { is_expected.to contain_exactly(payment_method_back_display, payment_method_both_display, payment_method_nil_display) }
     end
 
     context "when searching for payment methods available to a store" do
@@ -122,8 +146,7 @@ describe Spree::PaymentMethod, type: :model do
             payment_method_both_display,
             payment_method_front_display,
             payment_method_back_display
-          ]
-        )
+          ])
       end
 
       let!(:store_2) do
@@ -180,8 +203,8 @@ describe Spree::PaymentMethod, type: :model do
   end
 
   describe '#auto_capture?' do
-    class TestGateway < Spree::Gateway
-      def provider_class
+    class TestGateway < Spree::PaymentMethod::CreditCard
+      def gateway_class
         Provider
       end
     end
@@ -307,6 +330,79 @@ describe Spree::PaymentMethod, type: :model do
       it "should have none for display_on" do
         expect(payment.display_on).to eq "none"
       end
+    end
+  end
+
+  describe 'ActiveMerchant methods' do
+    class PaymentGateway
+      def initialize(options)
+      end
+
+      def authorize; 'authorize'; end
+
+      def purchase; 'purchase'; end
+
+      def capture; 'capture'; end
+
+      def void; 'void'; end
+
+      def credit; 'credit'; end
+    end
+
+    class TestPaymentMethod < Spree::PaymentMethod
+      def gateway_class
+        PaymentGateway
+      end
+    end
+
+    let(:payment_method) { TestPaymentMethod.new }
+
+    it "passes through authorize" do
+      expect(payment_method.authorize).to eq 'authorize'
+    end
+
+    it "passes through purchase" do
+      expect(payment_method.purchase).to eq 'purchase'
+    end
+
+    it "passes through capture" do
+      expect(payment_method.capture).to eq 'capture'
+    end
+
+    it "passes through void" do
+      expect(payment_method.void).to eq 'void'
+    end
+
+    it "passes through credit" do
+      expect(payment_method.credit).to eq 'credit'
+    end
+  end
+
+  describe 'model_name.human' do
+    context 'PaymentMethod itself' do
+      it "returns i18n value" do
+        expect(Spree::PaymentMethod.model_name.human).to eq('Payment Method')
+      end
+    end
+
+    context 'A subclass with no i18n key' do
+      let!(:klass) { stub_const("MyGem::SomeClass", Class.new(described_class)) }
+
+      it "returns default humanized value" do
+        expect(klass.model_name.human).to eq('Some class')
+      end
+    end
+  end
+
+  describe "::DISPLAY" do
+    it "returns [:both, :front_end, :back_end]" do
+      # Emits deprecation warning on first reference
+      Spree::Deprecation.silence do
+        expect(Spree::PaymentMethod::DISPLAY).to eq([:both, :front_end, :back_end])
+      end
+
+      # but not subsequent
+      expect(Spree::PaymentMethod::DISPLAY).to eq([:both, :front_end, :back_end])
     end
   end
 end

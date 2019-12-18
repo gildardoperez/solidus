@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe "Zones", type: :feature do
@@ -6,7 +8,7 @@ describe "Zones", type: :feature do
   before(:each) do
     Spree::Zone.delete_all
     visit spree.admin_path
-    click_link "Locations"
+    click_link "Zones"
   end
 
   context "show" do

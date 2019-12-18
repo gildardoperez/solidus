@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::ReimbursementTaxCalculator, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::ReimbursementTaxCalculator, type: :model do
   let!(:tax_rate) { nil }
 
   let(:reimbursement) { create(:reimbursement, return_items_count: 1) }

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   class ReturnItem < Spree::Base
     INTERMEDIATE_RECEPTION_STATUSES = %i(given_to_customer lost_in_transit shipped_wrong_item short_shipped in_transit)
@@ -27,15 +29,15 @@ module Spree
     class_attribute :refund_amount_calculator
     self.refund_amount_calculator = Calculator::Returns::DefaultRefundAmount
 
-    belongs_to :return_authorization, inverse_of: :return_items
-    belongs_to :inventory_unit, inverse_of: :return_items
-    belongs_to :exchange_variant, class_name: 'Spree::Variant'
-    belongs_to :exchange_inventory_unit, class_name: 'Spree::InventoryUnit', inverse_of: :original_return_item
-    belongs_to :customer_return, inverse_of: :return_items
-    belongs_to :reimbursement, inverse_of: :return_items
-    belongs_to :preferred_reimbursement_type, class_name: 'Spree::ReimbursementType'
-    belongs_to :override_reimbursement_type, class_name: 'Spree::ReimbursementType'
-    belongs_to :return_reason, class_name: 'Spree::ReturnReason', foreign_key: :return_reason_id
+    belongs_to :return_authorization, inverse_of: :return_items, optional: true
+    belongs_to :inventory_unit, inverse_of: :return_items, optional: true
+    belongs_to :exchange_variant, class_name: 'Spree::Variant', optional: true
+    belongs_to :exchange_inventory_unit, class_name: 'Spree::InventoryUnit', inverse_of: :original_return_item, optional: true
+    belongs_to :customer_return, inverse_of: :return_items, optional: true
+    belongs_to :reimbursement, inverse_of: :return_items, optional: true
+    belongs_to :preferred_reimbursement_type, class_name: 'Spree::ReimbursementType', optional: true
+    belongs_to :override_reimbursement_type, class_name: 'Spree::ReimbursementType', optional: true
+    belongs_to :return_reason, class_name: 'Spree::ReturnReason', foreign_key: :return_reason_id, optional: true
 
     validate :eligible_exchange_variant
     validate :belongs_to_same_customer_order
@@ -75,25 +77,12 @@ module Spree
     before_create :set_default_amount, unless: :amount_changed?
     before_save :set_exchange_amount
 
-    state_machine :reception_status, initial: :awaiting do
-      after_transition to: COMPLETED_RECEPTION_STATUSES,  do: :attempt_accept
-      after_transition to: COMPLETED_RECEPTION_STATUSES,  do: :check_unexchange
-      after_transition to: :received, do: :process_inventory_unit!
-
-      event(:cancel) { transition to: :cancelled, from: :awaiting }
-
-      event(:receive) { transition to: :received, from: INTERMEDIATE_RECEPTION_STATUSES + [:awaiting] }
-      event(:unexchange) { transition to: :unexchanged, from: [:awaiting] }
-      event(:give) { transition to: :given_to_customer, from: :awaiting }
-      event(:lost) { transition to: :lost_in_transit, from: :awaiting }
-      event(:wrong_item_shipped) { transition to: :shipped_wrong_item, from: :awaiting }
-      event(:short_shipped) { transition to: :short_shipped, from: :awaiting }
-      event(:in_transit) { transition to: :in_transit, from: :awaiting }
-      event(:expired) { transition to: :expired, from: :awaiting }
-    end
+    include ::Spree::Config.state_machines.return_item_reception
+    include ::Spree::Config.state_machines.return_item_acceptance
 
     extend DisplayMoney
-    money_methods :pre_tax_amount, :amount, :total
+    money_methods :pre_tax_amount, :amount, :total, :total_excluding_vat
+    deprecate display_pre_tax_amount: :display_total_excluding_vat, deprecator: Spree::Deprecation
 
     # @return [Boolean] true when this retur item is in a complete reception
     #   state
@@ -101,31 +90,8 @@ module Spree
       COMPLETED_RECEPTION_STATUSES.map(&:to_s).include?(reception_status.to_s)
     end
 
-    state_machine :acceptance_status, initial: :pending do
-      event :attempt_accept do
-        transition to: :accepted, from: :accepted
-        transition to: :accepted, from: :pending, if: ->(return_item) { return_item.eligible_for_return? }
-        transition to: :manual_intervention_required, from: :pending, if: ->(return_item) { return_item.requires_manual_intervention? }
-        transition to: :rejected, from: :pending
-      end
 
-      # bypasses eligibility checks
-      event :accept do
-        transition to: :accepted, from: [:accepted, :pending, :manual_intervention_required]
-      end
-
-      # bypasses eligibility checks
-      event :reject do
-        transition to: :rejected, from: [:accepted, :pending, :manual_intervention_required]
-      end
-
-      # bypasses eligibility checks
-      event :require_manual_intervention do
-        transition to: :manual_intervention_required, from: [:accepted, :pending, :manual_intervention_required]
-      end
-
-      after_transition any => any, do: :persist_acceptance_status_errors
-    end
+    attr_accessor :skip_customer_return_processing
 
     # @param inventory_unit [Spree::InventoryUnit] the inventory for which we
     #   want a return item
@@ -159,10 +125,12 @@ module Spree
       amount + additional_tax_total
     end
 
-    # @return [BigDecimal] the cost of the item before tax
-    def pre_tax_amount
+    # @return [BigDecimal] the cost of the item before VAT tax
+    def total_excluding_vat
       amount - included_tax_total
     end
+    alias pre_tax_amount total_excluding_vat
+    deprecate pre_tax_amount: :total_excluding_vat, deprecator: Spree::Deprecation
 
     # @note This uses the exchange_variant_engine configured on the class.
     # @param stock_locations [Array<Spree::StockLocation>] the stock locations to check
@@ -181,7 +149,7 @@ module Spree
       # for pricing information for if the inventory unit is
       # ever returned. This means that the inventory unit's line_item
       # will have a different variant than the inventory unit itself
-      super(variant: exchange_variant, line_item: inventory_unit.line_item, order: inventory_unit.order) if exchange_required?
+      super(variant: exchange_variant, line_item: inventory_unit.line_item) if exchange_required?
     end
 
     # @return [Spree::Shipment, nil] the exchange inventory unit's shipment if it exists
@@ -207,7 +175,7 @@ module Spree
       event_paths.delete(:expired)
       event_paths.delete(:unexchange)
 
-      status_paths.map{ |s| s.to_s.humanize }.zip(event_paths)
+      status_paths.map{ |status| I18n.t("spree.reception_states.#{status}", default: status.to_s.humanize) }.zip(event_paths)
     end
 
     def part_of_exchange?
@@ -219,7 +187,7 @@ module Spree
     private
 
     def persist_acceptance_status_errors
-      update_attributes(acceptance_status_errors: validator.errors)
+      update(acceptance_status_errors: validator.errors)
     end
 
     def currency
@@ -228,10 +196,12 @@ module Spree
 
     def process_inventory_unit!
       inventory_unit.return!
-
       if customer_return
         customer_return.stock_location.restock(inventory_unit.variant, 1, customer_return) if should_restock?
-        customer_return.process_return!
+        unless skip_customer_return_processing
+          Deprecation.warn 'From Solidus v2.9 onwards, #process_inventory_unit! will not call customer_return#process_return!'
+          customer_return.process_return!
+        end
       end
     end
 
@@ -259,14 +229,14 @@ module Spree
       return unless customer_return && inventory_unit
 
       if customer_return.order_id != inventory_unit.order_id
-        errors.add(:base, Spree.t(:return_items_cannot_be_associated_with_multiple_orders))
+        errors.add(:base, I18n.t('spree.return_items_cannot_be_associated_with_multiple_orders'))
       end
     end
 
     def eligible_exchange_variant
       return unless exchange_variant && exchange_variant_id_changed?
       unless eligible_exchange_variants.include?(exchange_variant)
-        errors.add(:base, Spree.t(:invalid_exchange_variant))
+        errors.add(:base, I18n.t('spree.invalid_exchange_variant'))
       end
     end
 

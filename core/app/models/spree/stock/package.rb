@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Stock
     class Package
@@ -44,7 +46,7 @@ module Spree
       def order
         # Fix regression that removed package.order.
         # Find it dynamically through an inventory_unit.
-        contents.detect { |item| !!item.try(:inventory_unit).try(:order) }.try(:inventory_unit).try(:order)
+        contents.detect { |item| !!item.try(:line_item).try(:order) }.try(:line_item).try(:order)
       end
 
       # @return [Float] the summed weight of the contents of this package
@@ -83,7 +85,7 @@ module Spree
       # @return [Fixnum] the number of inventory units in the package,
       #   counting only those in the given state if it was specified
       def quantity(state = nil)
-        matched_contents = state.nil? ? contents : contents.select { |c| c.state.to_s == state.to_s }
+        matched_contents = state.nil? ? contents : contents.select { |content| content.state.to_s == state.to_s }
         matched_contents.map(&:quantity).sum
       end
 

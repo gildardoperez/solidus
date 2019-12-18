@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Validations::DbMaximumLengthValidator, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Validations::DbMaximumLengthValidator, type: :model do
   with_model 'LimitedProduct', scope: :all do
     table do |t|
       t.string :slug, limit: 255

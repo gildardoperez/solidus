@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe 'current order tracking', type: :controller do
@@ -10,7 +12,7 @@ describe 'current order tracking', type: :controller do
     end
   end
 
-  let(:order) { FactoryGirl.create(:order) }
+  let(:order) { FactoryBot.create(:order) }
 
   it 'automatically tracks who the order was created by & IP address' do
     allow(controller).to receive_messages(try_spree_current_user: user)

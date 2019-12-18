@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Spree's rpsec controller tests get the Spree::ControllerHacks
 # we don't need those for the anonymous controller here, so
 # we call process directly instead of get
@@ -13,7 +15,7 @@ describe Spree::Admin::BaseController, type: :controller do
 
   context "unauthorized request" do
     before do
-      allow_any_instance_of(Spree::Admin::BaseController).to receive(:spree_current_user).and_return(nil)
+      allow_any_instance_of(Spree::Admin::BaseController).to receive(:try_spree_current_user).and_return(nil)
     end
 
     it "redirects to unauthorized" do

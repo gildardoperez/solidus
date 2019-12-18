@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class Spree::Admin::ResourceController < Spree::Admin::BaseController
   include Spree::Backend::Callbacks
 
@@ -28,7 +30,7 @@ class Spree::Admin::ResourceController < Spree::Admin::BaseController
 
   def update
     invoke_callbacks(:update, :before)
-    if @object.update_attributes(permitted_resource_params)
+    if @object.update(permitted_resource_params)
       invoke_callbacks(:update, :after)
       respond_with(@object) do |format|
         format.html do
@@ -79,13 +81,23 @@ class Spree::Admin::ResourceController < Spree::Admin::BaseController
     end
 
     respond_to do |format|
-      format.js { render plain: 'Ok' }
+      format.js { head :no_content }
     end
   end
 
   def destroy
     invoke_callbacks(:destroy, :before)
-    if @object.destroy
+
+    destroy_result =
+      if @object.respond_to?(:discard)
+        @object.discard
+      elsif @object.respond_to?(:paranoia_destroy)
+        @object.paranoia_destroy
+      else
+        @object.destroy
+      end
+
+    if destroy_result
       invoke_callbacks(:destroy, :after)
       flash[:success] = flash_message_for(@object, :successfully_removed)
       respond_with(@object) do |format|
@@ -95,7 +107,14 @@ class Spree::Admin::ResourceController < Spree::Admin::BaseController
     else
       invoke_callbacks(:destroy, :fails)
       respond_with(@object) do |format|
-        format.html { redirect_to location_after_destroy }
+        message = @object.errors.full_messages.to_sentence
+        format.html do
+          flash[:error] = message
+          redirect_to location_after_destroy
+        end
+        format.js do
+          render status: :unprocessable_entity, plain: message
+        end
       end
     end
   end
@@ -110,6 +129,7 @@ class Spree::Admin::ResourceController < Spree::Admin::BaseController
       @parent_data[:model_name] = model_name
       @parent_data[:model_class] = (options[:model_class] || model_name.to_s.classify.constantize)
       @parent_data[:find_by] = options[:find_by] || :id
+      @parent_data[:includes] = options[:includes]
     end
   end
 
@@ -126,8 +146,10 @@ class Spree::Admin::ResourceController < Spree::Admin::BaseController
     self.class.parent_data[:model_name].gsub('spree/', '')
   end
 
-  alias_method :model_name, :parent_model_name
-  deprecate model_name: :parent_model_name, deprecator: Spree::Deprecation
+  def model_name
+    Spree::Deprecation.warn('model_name is deprecated. Please use parent_model_name instead.', caller)
+    parent_model_name
+  end
 
   def object_name
     controller_name.singularize
@@ -162,13 +184,15 @@ class Spree::Admin::ResourceController < Spree::Admin::BaseController
   end
 
   def parent_data
+    Spree::Deprecation.warn('parent_data is deprecated without replacement.', caller)
     self.class.parent_data
   end
-  deprecate :parent_data, deprecator: Spree::Deprecation
 
   def parent
     if parent?
-      @parent ||= self.class.parent_data[:model_class].find_by(self.class.parent_data[:find_by] => params["#{parent_model_name}_id"])
+      @parent ||= self.class.parent_data[:model_class]
+                    .includes(self.class.parent_data[:includes])
+                    .find_by(self.class.parent_data[:find_by] => params["#{parent_model_name}_id"])
       instance_variable_set("@#{parent_model_name}", @parent)
     else
       Spree::Deprecation.warn "Calling #parent is deprecated on a ResourceController which has not defined a belongs_to"
@@ -201,7 +225,7 @@ class Spree::Admin::ResourceController < Spree::Admin::BaseController
     if model_class.respond_to?(:accessible_by) && !current_ability.has_block?(params[:action], model_class)
       model_class.accessible_by(current_ability, action)
     else
-      model_class.where(nil)
+      model_class.all
     end
   end
 
@@ -253,7 +277,7 @@ class Spree::Admin::ResourceController < Spree::Admin::BaseController
   #
   # Other controllers can, should, override it to set custom logic
   def permitted_resource_params
-    params[object_name].present? ? params.require(object_name).permit! : ActionController::Parameters.new
+    params[object_name].present? ? params.require(object_name).permit! : ActionController::Parameters.new.permit!
   end
 
   def collection_actions

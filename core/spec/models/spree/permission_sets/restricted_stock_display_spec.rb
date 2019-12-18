@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::PermissionSets::RestrictedStockDisplay do
+require 'rails_helper'
+
+RSpec.describe Spree::PermissionSets::RestrictedStockDisplay do
   let(:ability) { Spree::Ability.new(user) }
   let(:user) { create :user }
 

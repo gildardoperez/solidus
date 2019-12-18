@@ -1,7 +1,9 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
-  describe Migrations do
+  RSpec.describe Migrations do
     let(:app_migrations) { [".", "34_add_title.rb", "52_add_text.rb"] }
     let(:engine_migrations) { [".", "334_create_orders.spree.rb", "777_create_products.spree.rb"] }
 

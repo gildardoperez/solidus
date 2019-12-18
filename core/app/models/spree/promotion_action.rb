@@ -1,3 +1,7 @@
+# frozen_string_literal: true
+
+require 'discard'
+
 module Spree
   # Base class for all types of promotion action.
   #
@@ -5,10 +9,15 @@ module Spree
   # by an event and determined to be eligible.
   class PromotionAction < Spree::Base
     acts_as_paranoid
+    include Spree::ParanoiaDeprecations
 
-    belongs_to :promotion, class_name: 'Spree::Promotion', inverse_of: :promotion_actions
+    include Discard::Model
+    self.discard_column = :deleted_at
 
-    scope :of_type, ->(t) { where(type: t.to_s) }
+    belongs_to :promotion, class_name: 'Spree::Promotion', inverse_of: :promotion_actions, optional: true
+
+    scope :of_type, ->(type) { where(type: Array.wrap(type).map(&:to_s)) }
+    scope :shipping, -> { of_type(Spree::Config.environment.promotions.shipping_actions.to_a) }
 
     # Updates the state of the order or performs some other action depending on
     # the subclass options will contain the payload from the event that
@@ -35,6 +44,10 @@ module Spree
           end
         end
       end
+    end
+
+    def to_partial_path
+      "spree/admin/promotions/actions/#{model_name.element}"
     end
   end
 end

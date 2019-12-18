@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class ImagesController < Spree::Api::BaseController
@@ -18,13 +20,13 @@ module Spree
       end
 
       def update
-        @image = scope.images.accessible_by(current_ability, :update).find(params[:id])
-        @image.update_attributes(image_params)
+        @image = Spree::Image.accessible_by(current_ability, :update).find(params[:id])
+        @image.update(image_params)
         respond_with(@image, default_template: :show)
       end
 
       def destroy
-        @image = scope.images.accessible_by(current_ability, :destroy).find(params[:id])
+        @image = Spree::Image.accessible_by(current_ability, :destroy).find(params[:id])
         @image.destroy
         respond_with(@image, status: 204)
       end

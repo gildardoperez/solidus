@@ -143,10 +143,27 @@ label.error {
   margin-top: 3px;
 }
 
-span.required {
-  color: $c_red;
-  font-weight: bold;
-  font-size: 1.2em;
+.field {
+  padding: 10px 0;
+
+  label {
+    display: inline-block;
+    margin-bottom: 5px;
+  }
+
+  input,
+  select {
+    display: block;
+  }
+
+  &-required label:after {
+    content: "*";
+    display: inline-block;
+    color: $c_red;
+    font-weight: bold;
+    font-size: 1.2em;
+    margin-left: 3px;
+  }
 }
 
 fieldset {
@@ -356,9 +373,14 @@ nav#taxonomies {
   }
 
   .taxons-list {
+    ul {
+      margin-left: 1em;
+    }
     li {
-      a {
-        font-size: $main_navigation_font_size
+      font-size: $main_navigation_font_size;
+      font-weight: normal;
+      &.current {
+        font-weight: bold;
       }
     }
   }
@@ -401,8 +423,8 @@ nav#taxonomies {
 }
 
 .errorExplanation {
-  @extend .flash.error;
   @extend .flash;
+  background-color: $c_red;
 
   p {
     font-weight: normal;
@@ -450,13 +472,18 @@ nav#taxonomies {
   }
 }
 
-span.price {
+%price_text {
   font-weight: bold;
-  color: $link_text_color;
+  color: $product_price_text_color;
+}
+
+span.price {
+  @extend %price_text;
 
   &.selling {
     font-size: $product_detail_price_font_size;
   }
+
   &.diff {
     font-weight: bold;
   }
@@ -515,7 +542,7 @@ ul#products {
     }
 
     .price {
-      color: $link_text_color;
+      color: $product_price_text_color;
       font-size: $product_list_price_font_size;
       padding-top: 5px;
       display: block;
@@ -635,6 +662,10 @@ ul#products {
 /*--------------------------------------*/
 /* Checkout
 /*--------------------------------------*/
+.checkout_form_wrapper {
+  text-align: left;
+}
+
 .out-of-stock {
   background: #df0000;
   color: white;
@@ -715,7 +746,7 @@ ul#products {
     tr[data-hook="item_total"] {
       td:last-child {
         strong {
-          @extend span.price;
+          @extend %price_text;;
         }
       }
     }
@@ -725,7 +756,7 @@ ul#products {
     };
 
     #summary-order-total {
-      @extend span.price;
+      @extend %price_text;;
       font-size: $base_font_size + 2;
     }
   }
@@ -747,7 +778,7 @@ ul#products {
   }
 }
 
-#billing {
+#billing, #shipping {
   input[type="text"], input[type="email"],
   input[type="tel"], input[type="number"],
   select, textarea {
@@ -772,7 +803,7 @@ ul#products {
 
   td.price, td.total {
     span {
-      @extend span.price;
+      @extend %price_text;;
     }
   }
 
@@ -871,7 +902,7 @@ ul#products {
   .shipping-methods {
     list-style: none;
     margin: 0;
-    padding: none;
+    padding: 10px 0;
 
     .shipping-method {
       display: inline-block;
@@ -917,9 +948,35 @@ p[data-hook="use_billing"] {
   padding: 5px;
 }
 
+.coupon-code {
+  margin-top: 20px;
+  padding: 10px;
+
+  form {
+    display: flex;
+    flex-flow: row wrap;
+  }
+
+  label {
+    flex: 1 100%;
+    text-align: left;
+  }
+
+  input[type="text"] {
+    flex: 1 auto;
+    width: 50%;
+    margin-right: 5px;
+  }
+
+  &-apply-button {
+    white-space: nowrap;
+  }
+}
+
 #coupon_status {
+  margin-top: 10px;
   font-weight: bold;
-  font-size: 125%;
+  font-size: 100%;
   &.success {
     color: $c_green;
   }
@@ -947,8 +1004,8 @@ table#cart-detail {
     tr {
 
       td[data-hook="cart_item_price"], td[data-hook="cart_item_total"] {
-        @extend span.price;
-        @extend span.price.selling;
+        @extend %price_text;
+        font-size: $product_detail_price_font_size;
       }
       td[data-hook="cart_item_quantity"] {
         .line_item_quantity {
@@ -977,7 +1034,7 @@ div[data-hook="inside_cart_form"] {
     margin-top: 15px;
 
     span.order-total {
-      @extend span.price;
+      @extend %price_text;
     }
   }
 }
@@ -988,10 +1045,10 @@ div[data-hook="inside_cart_form"] {
 }
 
 .cart-subtotal, .cart-total {
-  background: #00ADEE;
+  background: $cart_total_background_color;
 
   td h5 {
-    color: #fff;
+    color: $cart_total_text_color;
   }
 }
 
@@ -1035,6 +1092,9 @@ div[data-hook="inside_cart_form"] {
 /*--------------------------------------*/
 #order_summary {
   margin-top: 0;
+  h1 {
+    padding-left: 10px;
+  }
 }
 #order {
   p[data-hook="links"] {
@@ -1203,6 +1263,15 @@ table.order-summary {
     }
   }
 
+}
+
+// # Logo
+#logo {
+  padding: 20px 0;
+
+  > a {
+    display: inline-block;
+  }
 }
 
 @media only screen and (max-width: 767px) {

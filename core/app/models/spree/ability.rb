@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Implementation class for Cancan gem.  Instead of overriding this class, consider adding new permissions
 # using the special +register_ability+ method which allows extensions to add their own abilities.
 #
@@ -56,7 +58,7 @@ module Spree
     end
 
     def activate_permission_sets
-      Spree::RoleConfiguration.instance.activate_permissions! self, user
+      Spree::Config.roles.activate_permissions! self, user
     end
   end
 end

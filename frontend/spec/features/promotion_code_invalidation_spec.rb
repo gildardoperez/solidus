@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
-RSpec.feature "Promotion Code Invalidation" do
+RSpec.feature "Promotion Code Invalidation", js: true do
   given!(:promotion) do
-    FactoryGirl.create(
+    FactoryBot.create(
       :promotion_with_item_adjustment,
       code: "PROMO",
       per_code_usage_limit: 1,
@@ -12,8 +14,8 @@ RSpec.feature "Promotion Code Invalidation" do
 
   background do
     create(:store)
-    FactoryGirl.create(:product, name: "DL-44")
-    FactoryGirl.create(:product, name: "E-11")
+    FactoryBot.create(:product, name: "DL-44")
+    FactoryBot.create(:product, name: "E-11")
 
     visit spree.root_path
     click_link "DL-44"
@@ -26,7 +28,7 @@ RSpec.feature "Promotion Code Invalidation" do
 
   scenario "adding the promotion to a cart with two applicable items" do
     fill_in "Coupon code", with: "PROMO"
-    click_button "Update"
+    click_button "Apply Code"
 
     expect(page).to have_content("The coupon code was successfully applied to your order")
 

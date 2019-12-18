@@ -1,4 +1,6 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 require 'spree/testing_support/factories/reimbursement_factory'
 
 RSpec.describe 'reimbursement factory' do
@@ -11,7 +13,7 @@ RSpec.describe 'reimbursement factory' do
   end
 
   describe 'total' do
-    subject { FactoryGirl.create(:reimbursement).total }
+    subject { FactoryBot.create(:reimbursement).total }
 
     it { is_expected.to be_present }
   end

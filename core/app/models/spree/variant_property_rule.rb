@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # The reason for variant properties not being associated with variants
 # (either directly or through an association table) is performance.
 #
@@ -11,7 +13,7 @@
 # targeted by the rule, the properties will automatically apply to the variant.
 module Spree
   class VariantPropertyRule < Spree::Base
-    belongs_to :product, touch: true
+    belongs_to :product, touch: true, optional: true
 
     has_many :values, class_name: 'Spree::VariantPropertyRuleValue', dependent: :destroy
     has_many :properties, through: :values

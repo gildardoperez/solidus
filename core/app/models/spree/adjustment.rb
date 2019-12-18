@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   # Adjustments represent a change to the +item_total+ of an Order. Each
   # adjustment has an +amount+ that can be either positive or negative.
@@ -14,11 +16,11 @@ module Spree
   #    order's adjustment total. This allows an adjustment to be preserved if
   #    it becomes ineligible so it might be reinstated.
   class Adjustment < Spree::Base
-    belongs_to :adjustable, polymorphic: true, touch: true
-    belongs_to :source, polymorphic: true
-    belongs_to :order, class_name: 'Spree::Order', inverse_of: :all_adjustments
-    belongs_to :promotion_code, class_name: 'Spree::PromotionCode'
-    belongs_to :adjustment_reason, class_name: 'Spree::AdjustmentReason', inverse_of: :adjustments
+    belongs_to :adjustable, polymorphic: true, touch: true, optional: true
+    belongs_to :source, polymorphic: true, optional: true
+    belongs_to :order, class_name: 'Spree::Order', inverse_of: :all_adjustments, optional: true
+    belongs_to :promotion_code, class_name: 'Spree::PromotionCode', optional: true
+    belongs_to :adjustment_reason, class_name: 'Spree::AdjustmentReason', inverse_of: :adjustments, optional: true
 
     validates :adjustable, presence: true
     validates :order, presence: true
@@ -54,20 +56,31 @@ module Spree
     extend DisplayMoney
     money_methods :amount
 
+    # Returns Adjustments of completed Orders.
+    #
+    # @param excluded_orders [Array<Spree::Order>] Orders to exclude from query
+    # @return [ActiveRecord::Relation] Scoped Adjustments
+    def self.in_completed_orders(excluded_orders: [])
+      joins(:order).
+      merge(Spree::Order.complete).
+      where.not(spree_orders: { id: excluded_orders }).
+      distinct
+    end
+
     def finalize!
-      update_attributes!(finalized: true)
+      update!(finalized: true)
     end
 
     def unfinalize!
-      update_attributes!(finalized: false)
+      update!(finalized: false)
     end
 
     def finalize
-      update_attributes(finalized: true)
+      update(finalized: true)
     end
 
     def unfinalize
-      update_attributes(finalized: false)
+      update(finalized: false)
     end
 
     def currency
@@ -96,11 +109,17 @@ module Spree
     # admin) or is closed, this is a noop.
     #
     # @return [BigDecimal] New amount of this adjustment
-    def update!
-      return amount if finalized?
+    def recalculate
+      if finalized? && !tax?
+        return amount
+      end
 
-      # If the adjustment has no source, do not attempt to re-calculate the amount.
-      # Chances are likely that this was a manually created adjustment in the admin backend.
+      # If the adjustment has no source, do not attempt to re-calculate the
+      # amount.
+      # Some scenarios where this happens:
+      #   - Adjustments that are manually created via the admin backend
+      #   - PromotionAction adjustments where the PromotionAction was deleted
+      #     after the order was completed.
       if source.present?
         self.amount = source.compute_amount(adjustable)
 
@@ -114,6 +133,15 @@ module Spree
         update_columns(eligible: eligible, amount: amount, updated_at: Time.current) if changed?
       end
       amount
+    end
+
+    def update!(*args)
+      if args.empty?
+        Spree::Deprecation.warn "Calling adjustment.update! with no arguments to recalculate amounts and eligibility is deprecated, since it conflicts with AR::Base#update! Please use adjustment.recalculate instead"
+        recalculate
+      else
+        super
+      end
     end
 
     # Calculates based on attached promotion (if this is a promotion

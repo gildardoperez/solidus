@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe Spree::Admin::ProductsController, type: :controller do
@@ -13,6 +15,30 @@ describe Spree::Admin::ProductsController, type: :controller do
       expect(assigns[:collection]).not_to be_empty
       expect(assigns[:collection]).to include(product)
     end
+
+    # Regression test for https://github.com/spree/spree/issues/1903
+    context 'when soft deleted products exist' do
+      let!(:soft_deleted_product) { create(:product, sku: "ABC123") }
+      before { soft_deleted_product.discard }
+
+      context 'when params[:q][:with_deleted] is not set' do
+        let(:params) { { q: {} } }
+
+        it 'filters out soft-deleted products by default' do
+          get :index, params: params
+          expect(assigns[:collection]).to_not include(soft_deleted_product)
+        end
+      end
+
+      context 'when params[:q][:with_deleted] is set to "true"' do
+        let(:params) { { q: { with_deleted: 'true' } } }
+
+        it 'includes soft-deleted products' do
+          get :index, params: params
+          expect(assigns[:collection]).to include(soft_deleted_product)
+        end
+      end
+    end
   end
 
   # regression test for https://github.com/spree/spree/issues/1370
@@ -21,6 +47,78 @@ describe Spree::Admin::ProductsController, type: :controller do
     specify do
       put :update, params: { id: product.to_param, product: { product_properties_attributes: { "1" => { property_name: "Foo", value: "bar" } } } }
       expect(flash[:success]).to eq("Product #{product.name.inspect} has been successfully updated!")
+    end
+  end
+
+  # regression test for https://github.com/solidusio/solidus/issues/2791
+  context "creating a product" do
+    before(:all) do
+      create(:shipping_category)
+    end
+
+    it "creates a product" do
+      post :create, params: {
+             product: {
+               name: "Product #1 - 9632",
+               description: "As seen on TV!",
+               price: 19.99,
+               shipping_category_id: Spree::ShippingCategory.first.id,
+             }
+           }
+      expect(flash[:success]).to eq("Product \"Product #1 - 9632\" has been successfully created!")
+    end
+
+    context "when there is a taxon" do
+      let(:first_taxon) { create(:taxon) }
+
+      it "creates a product with a taxon" do
+        post :create, params: {
+               product: {
+                 name: "Product #1 - 9632",
+                 description: "As seen on TV!",
+                 price: 19.99,
+                 shipping_category_id: Spree::ShippingCategory.first.id,
+                 taxon_ids: first_taxon.id.to_s
+               }
+             }
+        expect(flash[:success]).to eq("Product \"Product #1 - 9632\" has been successfully created!")
+      end
+
+      context "when their are multiple taxons" do
+        let(:second_taxon) { create(:taxon) }
+
+        it "creates a product with multiple taxons" do
+          post :create, params: {
+                 product: {
+                   name: "Product #1 - 9632",
+                   description: "As seen on TV!",
+                   price: 19.99,
+                   shipping_category_id: Spree::ShippingCategory.first.id,
+                   taxon_ids: "#{first_taxon.id}, #{second_taxon.id}"
+                 }
+               }
+          expect(flash[:success]).to eq("Product \"Product #1 - 9632\" has been successfully created!")
+        end
+      end
+    end
+  end
+
+  context "adding taxons to a product" do
+    let(:product) { create(:product) }
+    let(:first_taxon) { create(:taxon) }
+
+    it "adds a single taxon to a product" do
+      put :update, params: { id: product.to_param, product: { taxon_ids: first_taxon.id.to_s } }
+      expect(flash[:success]).to eq("Product #{product.name.inspect} has been successfully updated!")
+    end
+
+    context "when there are mulitple taxons" do
+      let(:second_taxon) { create(:taxon) }
+
+      it "adds multiple taxons to a product" do
+        put :update, params: { id: product.to_param, product: { taxon_ids: "#{first_taxon.id}, #{second_taxon.id}" } }
+        expect(flash[:success]).to eq("Product #{product.name.inspect} has been successfully updated!")
+      end
     end
   end
 
@@ -140,6 +238,16 @@ describe Spree::Admin::ProductsController, type: :controller do
     it "redirects to the product properties page" do
       subject
       expect(response).to redirect_to(spree.admin_product_product_properties_path(product, ovi: [option_value.id]))
+    end
+  end
+
+  context "cloning a product" do
+    let!(:product) { create(:product) }
+
+    it "duplicates the product" do
+      expect do
+        post :clone, params: { id: product.id }
+      end.to change { Spree::Product.count }.by(1)
     end
   end
 

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Admin
     class AdjustmentsController < ResourceController
@@ -25,7 +27,7 @@ module Spree
       end
 
       def update_totals
-        @order.reload.update!
+        @order.reload.recalculate
       end
 
       # Override method used to create a new instance to correctly
@@ -38,7 +40,7 @@ module Spree
         [
           Spree::AdjustmentReason.active.to_a,
           @adjustment.adjustment_reason
-        ].flatten.compact.uniq.sort_by { |r| r.name.downcase }
+        ].flatten.compact.uniq.sort_by { |reason| reason.name.downcase }
       end
     end
   end

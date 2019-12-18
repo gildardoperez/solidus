@@ -1,16 +1,15 @@
-@import 'bourbon';
-
 @import 'spree/backend/globals/functions';
 @import 'spree/backend/globals/deprecation';
 @import 'spree/backend/globals/variables_override';
 @import 'spree/backend/globals/variables';
+@import 'spree/backend/globals/deprecated_variables';
 
 @import 'bootstrap_custom';
 @import 'solidus_admin/bootstrap/bootstrap';
 
 @import 'spree/backend/globals/mixins';
 
-@import 'spree/backend/shared/skeleton';
+@import 'spree/backend/shared/fonts';
 @import 'spree/backend/shared/typography';
 @import 'spree/backend/shared/images';
 @import 'spree/backend/shared/tables';
@@ -23,8 +22,8 @@
 @import 'spree/backend/components/states';
 @import 'spree/backend/components/actions';
 @import 'spree/backend/components/breadcrumb';
+@import 'spree/backend/components/buttons';
 @import 'spree/backend/components/number_with_currency';
-@import 'spree/backend/components/date-picker';
 @import 'spree/backend/components/hint';
 @import 'spree/backend/components/image_placeholder';
 @import 'spree/backend/components/list_group';
@@ -33,17 +32,19 @@
 @import 'spree/backend/components/table-filter';
 @import 'spree/backend/components/navigation';
 @import 'spree/backend/components/sidebar';
-@import 'spree/backend/components/number_field_update';
-@import 'spree/backend/components/stock_table';
+@import 'spree/backend/components/editable_table';
+@import 'spree/backend/components/pills';
 @import 'spree/backend/components/tabs';
 
 @import 'font-awesome';
 @import 'spree/backend/plugins/select2';
 @import 'spree/backend/plugins/bootstrap_tooltip';
+@import 'spree/backend/plugins/sortable';
 
 @import 'spree/backend/sections/adjustments';
 @import 'spree/backend/sections/orders';
 @import 'spree/backend/sections/products';
+@import 'spree/backend/sections/variants';
 @import 'spree/backend/sections/promotions';
 @import 'spree/backend/sections/bulk_transfer';
 @import 'spree/backend/sections/return_authorizations';
@@ -53,7 +54,4 @@
 @import 'spree/backend/sections/users';
 @import 'spree/backend/sections/store_credits';
 @import 'spree/backend/sections/stock_management';
-@import 'spree/backend/sections/transfer_items';
-@import 'spree/backend/sections/stock_transfers';
 @import 'spree/backend/sections/style_guide';
-@import 'spree/backend/sections/payments';

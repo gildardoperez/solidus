@@ -1,7 +1,9 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
-  describe Reimbursement::ReimbursementTypeEngine, type: :model do
+  RSpec.describe Reimbursement::ReimbursementTypeEngine, type: :model do
     describe '#calculate_reimbursement_types' do
       let(:return_item)   { create(:return_item) }
       let(:return_items)  { [return_item] }

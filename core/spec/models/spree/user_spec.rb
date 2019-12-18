@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::LegacyUser, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::LegacyUser, type: :model do
   context "#last_incomplete_order" do
     let!(:user) { create(:user) }
 
@@ -34,7 +36,7 @@ describe Spree::LegacyUser, type: :model do
 
     context "with completable_order_created_cutoff set" do
       before do
-        Spree::Config.completable_order_created_cutoff_days = 1
+        stub_spree_preferences(completable_order_created_cutoff_days: 1)
       end
 
       it "excludes orders updated outside of the cutoff date" do
@@ -45,7 +47,7 @@ describe Spree::LegacyUser, type: :model do
 
     context "with completable_order_created_cutoff set" do
       before do
-        Spree::Config.completable_order_updated_cutoff_days = 1
+        stub_spree_preferences(completable_order_updated_cutoff_days: 1)
       end
 
       it "excludes orders updated outside of the cutoff date" do
@@ -100,9 +102,9 @@ describe Spree::LegacyUser, type: :model do
   end
 end
 
-describe Spree.user_class, type: :model do
+RSpec.describe Spree.user_class, type: :model do
   context "reporting" do
-    let(:order_value) { BigDecimal.new("80.94") }
+    let(:order_value) { BigDecimal("80.94") }
     let(:order_count) { 4 }
     let(:orders) { Array.new(order_count, double(total: order_value)) }
 
@@ -140,7 +142,7 @@ describe Spree.user_class, type: :model do
     describe "#order_count" do
       before { load_orders }
       it "returns the count of completed orders for the user" do
-        expect(subject.order_count).to eq BigDecimal(order_count)
+        expect(subject.order_count).to eq order_count
       end
     end
 
@@ -168,7 +170,16 @@ describe Spree.user_class, type: :model do
     end
   end
 
+  # TODO: Remove this after the method has been fully removed
   describe "#total_available_store_credit" do
+    before do
+      allow_any_instance_of(Spree::LegacyUser).to receive(:total_available_store_credit).and_wrap_original do |method, *args|
+        Spree::Deprecation.silence do
+          method.call(*args)
+        end
+      end
+    end
+
     context "user does not have any associated store credits" do
       subject { create(:user) }
 
@@ -189,12 +200,12 @@ describe Spree.user_class, type: :model do
       context "part of the store credit has been used" do
         let(:amount_used) { 35.00 }
 
-        before { store_credit.update_attributes(amount_used: amount_used) }
+        before { store_credit.update(amount_used: amount_used) }
 
         context "part of the store credit has been authorized" do
           let(:authorized_amount) { 10 }
 
-          before { additional_store_credit.update_attributes(amount_authorized: authorized_amount) }
+          before { additional_store_credit.update(amount_authorized: authorized_amount) }
 
           it "returns sum of amounts minus used amount and authorized amount" do
             expect(subject.total_available_store_credit.to_f).to eq(amount + additional_amount - amount_used - authorized_amount)
@@ -212,7 +223,7 @@ describe Spree.user_class, type: :model do
         context "part of the store credit has been authorized" do
           let(:authorized_amount) { 10 }
 
-          before { additional_store_credit.update_attributes(amount_authorized: authorized_amount) }
+          before { additional_store_credit.update(amount_authorized: authorized_amount) }
 
           it "returns sum of amounts minus authorized amount" do
             expect(subject.total_available_store_credit.to_f).to eq(amount + additional_amount - authorized_amount)

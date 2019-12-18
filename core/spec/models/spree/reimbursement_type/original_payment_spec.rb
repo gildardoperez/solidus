@@ -1,14 +1,17 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
-  describe ReimbursementType::OriginalPayment, type: :model do
+  RSpec.describe ReimbursementType::OriginalPayment, type: :model do
     let(:reimbursement)           { create(:reimbursement, return_items_count: 1) }
     let(:return_item)             { reimbursement.return_items.first }
     let(:payment)                 { reimbursement.order.payments.first }
     let(:simulate)                { false }
     let!(:default_refund_reason)  { Spree::RefundReason.find_or_create_by!(name: Spree::RefundReason::RETURN_PROCESSING_REASON, mutable: false) }
+    let(:created_by_user) { create(:user, email: 'user@email.com') }
 
-    subject { Spree::ReimbursementType::OriginalPayment.reimburse(reimbursement, [return_item], simulate) }
+    subject { Spree::ReimbursementType::OriginalPayment.reimburse(reimbursement, [return_item], simulate, created_by: created_by_user) }
 
     before { reimbursement.update!(total: reimbursement.calculated_total) }
 
@@ -54,14 +57,14 @@ module Spree
       context "multiple payment methods" do
         let(:simulate) { true }
         let!(:check_payment) { create(:check_payment, order: reimbursement.order, amount: 5.0, state: "completed") }
-        let(:payment) { reimbursement.order.payments.detect { |p| p.payment_method.is_a? Spree::Gateway::Bogus } }
+        let(:payment) { reimbursement.order.payments.detect { |item| item.payment_method.is_a? Spree::PaymentMethod::BogusCreditCard } }
         let(:refund_amount) { 10.0 }
 
         let(:refund_payment_methods) { subject.map { |refund| refund.payment.payment_method } }
 
         before do
-          reimbursement.order.payments.first.update_attributes!(amount: 5.0)
-          return_item.update_attributes!(amount: refund_amount)
+          reimbursement.order.payments.first.update!(amount: 5.0)
+          return_item.update!(amount: refund_amount)
         end
 
         it "includes refunds all payment type" do

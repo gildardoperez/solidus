@@ -1,6 +1,4 @@
-# encoding: utf-8
-
-require 'money'
+# frozen_string_literal: true
 
 module Spree
   # Spree::Money is a relatively thin wrapper around Monetize which handles
@@ -75,16 +73,22 @@ module Spree
       @money.format(@options.merge(options))
     end
 
-    # @note If you pass in options, ensure you pass in the html: true as well.
+    # @note If you pass in options, ensure you pass in the { html_wrap: true } as well.
     # @param options [Hash] additional formatting options
     # @return [String] the value of this money object formatted according to
-    #   its options and any additional options, by default as html.
-    def to_html(options = { html: true })
+    #   its options and any additional options, by default with html_wrap.
+    def to_html(options = { html_wrap: true })
       output = format(options)
-      if options[:html]
-        # 1) prevent blank, breaking spaces
-        # 2) prevent escaping of HTML character entities
-        output = output.sub(" ", "&nbsp;").html_safe
+      # Maintain compatibility by checking html option renamed to html_wrap.
+      if options[:html] || options[:html] == false
+        Spree::Deprecation.warn <<-WARN.squish, caller
+          Spree::Money#to_html called with Spree::Money#to_html(html: #{options[:html]}),
+          which will not be supported in the future.
+          Instead use :html_wrap e.g. Spree::Money#to_html(html_wrap: #{options[:html]})
+        WARN
+      end
+      if options[:html_wrap] || options[:html]
+        output = output.html_safe
       end
       output
     end
@@ -98,13 +102,13 @@ module Spree
       if !other.respond_to?(:money)
         raise TypeError, "Can't compare #{other.class} to Spree::Money"
       end
-      if self.currency != other.currency
+      if currency != other.currency
         # By default, ::Money will try to run a conversion on `other.money` and
         # try a comparison on that. We do not want any currency conversion to
         # take place so we'll catch this here and raise an error.
         raise(
           DifferentCurrencyError,
-          "Can't compare #{self.currency} with #{other.currency}"
+          "Can't compare #{currency} with #{other.currency}"
         )
       end
       @money <=> other.money

@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::PermissionSets::DefaultCustomer do
+require 'rails_helper'
+
+RSpec.describe Spree::PermissionSets::DefaultCustomer do
   context 'as Guest User' do
     context 'for Order' do
       context 'guest_token is empty string' do

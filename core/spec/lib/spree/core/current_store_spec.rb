@@ -1,8 +1,10 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Core::CurrentStore do
+require 'rails_helper'
+
+RSpec.describe Spree::Core::CurrentStore do
   describe "#store" do
-    subject { Spree::Core::CurrentStore.new(request).store }
+    subject { Spree::Deprecation.silence { Spree::Core::CurrentStore.new(request).store } }
 
     context "with a default" do
       let(:request) { double(headers: {}, env: {}) }
@@ -20,17 +22,12 @@ describe Spree::Core::CurrentStore do
         it "returns the store with the matching domain" do
           expect(subject).to eq(store_2)
         end
-
-        context "with headers" do
-          let(:request) { double(headers: { "HTTP_SPREE_STORE" => headers_code }, env: {}) }
-          let(:headers_code) { "HEADERS" }
-          let!(:store_3) { create :store, code: headers_code, default: false }
-
-          it "returns the store with the matching code" do
-            expect(subject).to eq(store_3)
-          end
-        end
       end
+    end
+
+    it 'is deprecated' do
+      expect(Spree::Deprecation).to(receive(:warn))
+      Spree::Core::CurrentStore.new(double)
     end
   end
 end

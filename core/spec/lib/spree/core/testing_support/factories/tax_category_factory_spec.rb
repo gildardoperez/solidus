@@ -1,4 +1,6 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 require 'spree/testing_support/factories/tax_category_factory'
 
 RSpec.describe 'tax category factory' do

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spree/testing_support/factories/address_factory'
 require 'spree/testing_support/factories/shipment_factory'
 require 'spree/testing_support/factories/store_factory'
@@ -5,23 +7,31 @@ require 'spree/testing_support/factories/user_factory'
 require 'spree/testing_support/factories/line_item_factory'
 require 'spree/testing_support/factories/payment_factory'
 
-FactoryGirl.define do
-  factory :order, class: Spree::Order do
+FactoryBot.define do
+  factory :order, class: 'Spree::Order' do
     user
     bill_address
     ship_address
-    completed_at nil
+    completed_at { nil }
     email { user.try(:email) }
     store
 
     transient do
-      line_items_price BigDecimal.new(10)
+      line_items_price { BigDecimal(10) }
     end
 
+    # TODO: Improve the name of order_with_totals factory.
     factory :order_with_totals do
-      after(:create) do |order, evaluator|
-        create(:line_item, order: order, price: evaluator.line_items_price)
-        order.line_items.reload # to ensure order.line_items is accessible after
+      after(:build) do |order, evaluator|
+        order.line_items << build(
+          :line_item,
+          order: order,
+          price: evaluator.line_items_price
+        )
+      end
+
+      after(:create) do |order|
+        order.recalculate
       end
     end
 
@@ -30,14 +40,14 @@ FactoryGirl.define do
       ship_address
 
       transient do
-        line_items_count 1
+        line_items_count { 1 }
         line_items_attributes { [{}] * line_items_count }
-        shipment_cost 100
-        shipping_method nil
+        shipment_cost { 100 }
+        shipping_method { nil }
         stock_location { create(:stock_location) }
       end
 
-      after(:create) do |order, evaluator|
+      after(:build) do |order, evaluator|
         evaluator.stock_location # must evaluate before creating line items
 
         evaluator.line_items_attributes.each do |attributes|
@@ -49,15 +59,33 @@ FactoryGirl.define do
         create(:shipment, order: order, cost: evaluator.shipment_cost, shipping_method: evaluator.shipping_method, stock_location: evaluator.stock_location)
         order.shipments.reload
 
-        order.update!
+        order.recalculate
+      end
+
+      factory :completed_order_with_promotion do
+        transient do
+          promotion { nil }
+        end
+
+        after(:create) do |order, evaluator|
+          promotion = evaluator.promotion || create(:promotion, code: "test")
+          promotion_code = promotion.codes.first || create(:promotion_code, promotion: promotion)
+
+          promotion.activate(order: order, promotion_code: promotion_code)
+          order.order_promotions.create!(promotion: promotion, promotion_code: promotion_code)
+
+          # Complete the order after the promotion has been activated
+          order.update_column(:completed_at, Time.current)
+          order.update_column(:state, "complete")
+        end
       end
 
       factory :order_ready_to_complete do
-        state 'confirm'
-        payment_state 'checkout'
+        state { 'confirm' }
+        payment_state { 'checkout' }
 
         transient do
-          payment_type :credit_card_payment
+          payment_type { :credit_card_payment }
         end
 
         after(:create) do |order, evaluator|
@@ -72,10 +100,9 @@ FactoryGirl.define do
       end
 
       factory :completed_order_with_totals do
-        state 'complete'
+        state { 'complete' }
 
         after(:create) do |order|
-          order.refresh_shipment_rates
           order.shipments.each do |shipment|
             shipment.inventory_units.update_all state: 'on_hand', pending: false
           end
@@ -89,11 +116,11 @@ FactoryGirl.define do
         end
 
         factory :order_ready_to_ship do
-          payment_state 'paid'
-          shipment_state 'ready'
+          payment_state { 'paid' }
+          shipment_state { 'ready' }
 
           transient do
-            payment_type :credit_card_payment
+            payment_type { :credit_card_payment }
           end
 
           after(:create) do |order, evaluator|
@@ -106,7 +133,7 @@ FactoryGirl.define do
 
           factory :shipped_order do
             transient do
-              with_cartons true
+              with_cartons { true }
             end
             after(:create) do |order, evaluator|
               order.shipments.each do |shipment|
@@ -128,25 +155,6 @@ FactoryGirl.define do
           end
         end
       end
-    end
-  end
-
-  factory :completed_order_with_promotion, parent: :order_with_line_items, class: "Spree::Order" do
-    transient do
-      promotion nil
-    end
-
-    after(:create) do |order, evaluator|
-      promotion = evaluator.promotion || create(:promotion, code: "test")
-      promotion_code = promotion.codes.first || create(:promotion_code, promotion: promotion)
-
-      promotion.activate(order: order, promotion_code: promotion_code)
-      order.order_promotions.create!(promotion: promotion, promotion_code: promotion_code)
-
-      # Complete the order after the promotion has been activated
-      order.refresh_shipment_rates
-      order.update_column(:completed_at, Time.current)
-      order.update_column(:state, "complete")
     end
   end
 end

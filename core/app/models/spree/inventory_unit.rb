@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   # Tracks the state of line items' fulfillment.
   #
@@ -6,18 +8,23 @@ module Spree
     POST_SHIPMENT_STATES = %w(returned)
     CANCELABLE_STATES = ['on_hand', 'backordered', 'shipped']
 
-    belongs_to :variant, -> { with_deleted }, class_name: "Spree::Variant", inverse_of: :inventory_units
-    belongs_to :order, class_name: "Spree::Order", inverse_of: :inventory_units
-    belongs_to :shipment, class_name: "Spree::Shipment", touch: true, inverse_of: :inventory_units
-    belongs_to :return_authorization, class_name: "Spree::ReturnAuthorization", inverse_of: :inventory_units
-    belongs_to :carton, class_name: "Spree::Carton", inverse_of: :inventory_units
-    belongs_to :line_item, class_name: "Spree::LineItem", inverse_of: :inventory_units
+    belongs_to :variant, -> { with_deleted }, class_name: "Spree::Variant", inverse_of: :inventory_units, optional: true
+    belongs_to :shipment, class_name: "Spree::Shipment", touch: true, inverse_of: :inventory_units, optional: true
+    belongs_to :carton, class_name: "Spree::Carton", inverse_of: :inventory_units, optional: true
+    belongs_to :line_item, class_name: "Spree::LineItem", inverse_of: :inventory_units, optional: true
 
     has_many :return_items, inverse_of: :inventory_unit, dependent: :destroy
     has_one :original_return_item, class_name: "Spree::ReturnItem", foreign_key: :exchange_inventory_unit_id, dependent: :destroy
     has_one :unit_cancel, class_name: "Spree::UnitCancel"
+    has_one :order, through: :shipment
 
-    validates_presence_of :order, :shipment, :line_item, :variant
+    delegate :order_id, to: :shipment
+
+    def order=(_)
+      raise "The order association has been removed from InventoryUnit. The order is now determined from the shipment."
+    end
+
+    validates_presence_of :shipment, :line_item, :variant
 
     before_destroy :ensure_can_destroy
 
@@ -39,10 +46,11 @@ module Spree
         .backordered.order(Spree::Order.arel_table[:completed_at].asc)
     end
 
+    # @method backordered_for_stock_item(stock_item)
     # @param stock_item [Spree::StockItem] the stock item of the desired
     #   inventory units
     # @return [ActiveRecord::Relation<Spree::InventoryUnit>] backordered
-    # inventory units for the given stock item
+    #   inventory units for the given stock item
     scope :backordered_for_stock_item, ->(stock_item) do
       backordered_per_variant(stock_item)
         .where(spree_shipments: { stock_location_id: stock_item.stock_location_id })
@@ -50,31 +58,21 @@ module Spree
 
     scope :shippable, -> { on_hand }
 
-    # state machine (see http://github.com/pluginaweek/state_machine/tree/master for details)
-    state_machine initial: :on_hand do
-      event :fill_backorder do
-        transition to: :on_hand, from: :backordered
-      end
-      after_transition on: :fill_backorder, do: :fulfill_order
-
-      event :ship do
-        transition to: :shipped, if: :allow_ship?
-      end
-
-      event :return do
-        transition to: :returned, from: :shipped
-      end
-
-      event :cancel do
-        transition to: :canceled, from: CANCELABLE_STATES.map(&:to_sym)
-      end
-    end
+    include ::Spree::Config.state_machines.inventory_unit
 
     # Updates the given inventory units to not be pending.
     #
+    # @deprecated do not use this, use
+    #   Spree::Stock::InventoryUnitsFinalizer.new(inventory_units).run!
     # @param inventory_units [<Spree::InventoryUnit>] the inventory to be
     #   finalized
     def self.finalize_units!(inventory_units)
+      Spree::Deprecation.warn(
+        "inventory_units.finalize_units!(inventory_units) is deprecated. Please
+        use Spree::Stock::InventoryUnitsFinalizer.new(inventory_units).run!",
+        caller
+      )
+
       inventory_units.map do |iu|
         iu.update_columns(
           pending: false,
@@ -128,7 +126,7 @@ module Spree
     end
 
     def percentage_of_line_item
-      1 / BigDecimal.new(line_item.quantity)
+      1 / BigDecimal(line_item.quantity)
     end
 
     def current_return_item

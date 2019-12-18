@@ -1,18 +1,22 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 module Spree
   describe 'Api Feature Specs', type: :request do
-    before { Spree::Api::Config[:requires_authentication] = false }
-    let!(:promotion) { FactoryGirl.create(:promotion, :with_order_adjustment, code: 'foo', weighted_order_adjustment_amount: 10) }
+    before do
+      stub_spree_preferences(Spree::Api::Config, requires_authentication: false)
+    end
+    let!(:promotion) { FactoryBot.create(:promotion, :with_order_adjustment, code: 'foo', weighted_order_adjustment_amount: 10) }
     let(:promotion_code) { promotion.codes.first }
-    let!(:store) { FactoryGirl.create(:store) }
-    let(:bill_address) { FactoryGirl.create(:address) }
-    let(:ship_address) { FactoryGirl.create(:address) }
-    let(:variant_1) { FactoryGirl.create(:variant, price: 100.00) }
-    let(:variant_2) { FactoryGirl.create(:variant, price: 200.00) }
-    let(:payment_method) { FactoryGirl.create(:check_payment_method) }
+    let!(:store) { FactoryBot.create(:store) }
+    let(:bill_address) { FactoryBot.create(:address) }
+    let(:ship_address) { FactoryBot.create(:address) }
+    let(:variant_1) { FactoryBot.create(:variant, price: 100.00) }
+    let(:variant_2) { FactoryBot.create(:variant, price: 200.00) }
+    let(:payment_method) { FactoryBot.create(:check_payment_method) }
     let!(:shipping_method) do
-      FactoryGirl.create(:shipping_method).tap do |shipping_method|
+      FactoryBot.create(:shipping_method).tap do |shipping_method|
         shipping_method.zones.first.zone_members.create!(zoneable: ship_address.country)
         shipping_method.calculator.set_preference(:amount, 10.0)
       end
@@ -60,7 +64,7 @@ module Spree
 
     def add_promotion(_promotion)
       expect {
-        put "/api/orders/#{@order.number}/apply_coupon_code",
+        post "/api/orders/#{@order.number}/coupon_codes",
           params: { coupon_code: promotion_code.value }
       }.to change { @order.promotions.count }.by 1
       expect(response).to have_http_status(:ok)
@@ -141,10 +145,6 @@ module Spree
             0 => { variant_id: variant_1.id, quantity: 2 },
             1 => { variant_id: variant_2.id, quantity: 2 }
           },
-          # Would like to do this, but the save process from the orders controller
-          # does not actually call what it needs to to apply this coupon code :(
-          # coupon_code: promotion.code,
-
           # Would like to do this, but it puts the payment in a complete state,
           # which the order does not like when transitioning from confirm to complete
           # since it looks to process pending payments.
@@ -173,10 +173,6 @@ module Spree
             0 => { variant_id: variant_1.id, quantity: 2 },
             1 => { variant_id: variant_2.id, quantity: 2 }
           },
-          # Would like to do this, but the save process from the orders controller
-          # does not actually call what it needs to to apply this coupon code :(
-          # coupon_code: promotion.code,
-
           # Would like to do this, but it puts the payment in a complete state,
           # which the order does not like when transitioning from confirm to complete
           # since it looks to process pending payments.

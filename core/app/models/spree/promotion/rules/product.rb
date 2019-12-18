@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 module Spree
-  class Promotion
+  class Promotion < Spree::Base
     module Rules
       # A rule to limit a promotion based on products in the order.  Can
       # require all or any of the products to be present.  Valid products
@@ -30,16 +32,16 @@ module Spree
 
           case preferred_match_policy
           when 'all'
-            unless eligible_products.all? { |p| order.products.include?(p) }
-              eligibility_errors.add(:base, eligibility_error_message(:missing_product))
+            unless eligible_products.all? { |product| order.products.include?(product) }
+              eligibility_errors.add(:base, eligibility_error_message(:missing_product), error_code: :missing_product)
             end
           when 'any'
-            unless order.products.any? { |p| eligible_products.include?(p) }
-              eligibility_errors.add(:base, eligibility_error_message(:no_applicable_products))
+            unless order.products.any? { |product| eligible_products.include?(product) }
+              eligibility_errors.add(:base, eligibility_error_message(:no_applicable_products), error_code: :no_applicable_products)
             end
           when 'none'
-            unless order.products.none? { |p| eligible_products.include?(p) }
-              eligibility_errors.add(:base, eligibility_error_message(:has_excluded_product))
+            unless order.products.none? { |product| eligible_products.include?(product) }
+              eligibility_errors.add(:base, eligibility_error_message(:has_excluded_product), error_code: :has_excluded_product)
             end
           else
             raise "unexpected match policy: #{preferred_match_policy.inspect}"
@@ -63,8 +65,8 @@ module Spree
           product_ids.join(',')
         end
 
-        def product_ids_string=(s)
-          self.product_ids = s.to_s.split(',').map(&:strip)
+        def product_ids_string=(product_ids)
+          self.product_ids = product_ids.to_s.split(',').map(&:strip)
         end
       end
     end

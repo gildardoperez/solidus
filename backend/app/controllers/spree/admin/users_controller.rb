@@ -1,11 +1,14 @@
+# frozen_string_literal: true
+
 module Spree
   module Admin
     class UsersController < ResourceController
-      rescue_from Spree::Core::DestroyWithOrdersError, with: :user_destroy_with_orders_error
+      rescue_from ActiveRecord::DeleteRestrictionError, with: :user_destroy_with_orders_error
 
       after_action :sign_in_if_change_own_password, only: :update
 
-      before_action :load_roles, :load_stock_locations, only: [:edit, :new]
+      before_action :load_roles, only: [:index, :edit, :new]
+      before_action :load_stock_locations, only: [:edit, :new]
 
       def index
         respond_with(@collection) do |format|
@@ -23,7 +26,7 @@ module Spree
           set_roles
           set_stock_locations
 
-          flash[:success] = Spree.t(:created_successfully)
+          flash[:success] = t('spree.created_successfully')
           redirect_to edit_admin_user_url(@user)
         else
           load_roles
@@ -35,11 +38,11 @@ module Spree
       end
 
       def update
-        if @user.update_attributes(user_params)
+        if @user.update(user_params)
           set_roles
           set_stock_locations
 
-          flash[:success] = Spree.t(:account_updated)
+          flash[:success] = t('spree.account_updated')
           redirect_to edit_admin_user_url(@user)
         else
           load_roles
@@ -52,8 +55,8 @@ module Spree
 
       def addresses
         if request.put?
-          if @user.update_attributes(user_params)
-            flash.now[:success] = Spree.t(:account_updated)
+          if @user.update(user_params)
+            flash.now[:success] = t('spree.account_updated')
           end
 
           render :addresses
@@ -68,23 +71,26 @@ module Spree
 
       def items
         params[:q] ||= {}
+
         @search = Spree::Order.includes(
           line_items: {
             variant: [:product, { option_values: :option_type }]
-          }).ransack(params[:q].merge(user_id_eq: @user.id))
+          }
+).ransack(params[:q].merge(user_id_eq: @user.id))
+
         @orders = @search.result.page(params[:page]).per(Spree::Config[:admin_products_per_page])
       end
 
       def generate_api_key
         if @user.generate_spree_api_key!
-          flash[:success] = Spree.t('api.key_generated')
+          flash[:success] = t('spree.admin.api.key_generated')
         end
         redirect_to edit_admin_user_path(@user)
       end
 
       def clear_api_key
         if @user.clear_spree_api_key!
-          flash[:success] = Spree.t('api.key_cleared')
+          flash[:success] = t('spree.admin.api.key_cleared')
         end
         redirect_to edit_admin_user_path(@user)
       end
@@ -96,19 +102,21 @@ module Spree
       private
 
       def collection
-        return @collection if @collection.present?
+        return @collection if @collection
         if request.xhr? && params[:q].present?
           @collection = Spree.user_class.includes(:bill_address, :ship_address)
-                            .where("spree_users.email #{LIKE} :search
-                                   OR (spree_addresses.firstname #{LIKE} :search AND spree_addresses.id = spree_users.bill_address_id)
-                                   OR (spree_addresses.lastname  #{LIKE} :search AND spree_addresses.id = spree_users.bill_address_id)
-                                   OR (spree_addresses.firstname #{LIKE} :search AND spree_addresses.id = spree_users.ship_address_id)
-                                   OR (spree_addresses.lastname  #{LIKE} :search AND spree_addresses.id = spree_users.ship_address_id)",
+                            .where("#{Spree.user_class.table_name}.email #{LIKE} :search
+                                   OR (spree_addresses.firstname #{LIKE} :search AND spree_addresses.id = #{Spree.user_class.table_name}.bill_address_id)
+                                   OR (spree_addresses.lastname  #{LIKE} :search AND spree_addresses.id = #{Spree.user_class.table_name}.bill_address_id)
+                                   OR (spree_addresses.firstname #{LIKE} :search AND spree_addresses.id = #{Spree.user_class.table_name}.ship_address_id)
+                                   OR (spree_addresses.lastname  #{LIKE} :search AND spree_addresses.id = #{Spree.user_class.table_name}.ship_address_id)",
                                   { search: "#{params[:q].strip}%" })
                             .limit(params[:limit] || 100)
         else
           @search = Spree.user_class.ransack(params[:q])
-          @collection = @search.result.page(params[:page]).per(Spree::Config[:admin_products_per_page])
+          @collection = @search.result.includes(:spree_roles)
+          @collection = @collection.includes(:spree_orders)
+          @collection = @collection.page(params[:page]).per(Spree::Config[:admin_products_per_page])
         end
       end
 
@@ -123,13 +131,17 @@ module Spree
           attributes += [{ spree_role_ids: [] }]
         end
 
+        unless can? :update_password, @user
+          attributes -= [:password, :password_confirmation]
+        end
+
         params.require(:user).permit(attributes)
       end
 
       # handling raise from Spree::Admin::ResourceController#destroy
       def user_destroy_with_orders_error
         invoke_callbacks(:destroy, :fails)
-        render status: :forbidden, text: Spree.t(:error_user_destroy_with_orders)
+        render status: :forbidden, text: t('spree.error_user_destroy_with_orders')
       end
 
       def sign_in_if_change_own_password
@@ -140,7 +152,9 @@ module Spree
 
       def load_roles
         @roles = Spree::Role.all
-        @user_roles = @user.spree_roles
+        if @user
+          @user_roles = @user.spree_roles
+        end
       end
 
       def load_stock_locations

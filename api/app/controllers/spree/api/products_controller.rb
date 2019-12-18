@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class ProductsController < Spree::Api::BaseController
@@ -6,7 +8,16 @@ module Spree
           ids = params[:ids].split(",").flatten
           @products = product_scope.where(id: ids)
         else
-          @products = product_scope.ransack(params[:q]).result
+          products_includes = [
+            :variants,
+            :option_types,
+            :product_properties,
+            { classifications: :taxon }
+          ]
+          @products = product_scope
+                        .ransack(params[:q])
+                        .result
+                        .includes(products_includes)
         end
 
         @products = paginate(@products.distinct)
@@ -91,7 +102,7 @@ module Spree
       def destroy
         @product = find_product(params[:id])
         authorize! :destroy, @product
-        @product.destroy
+        @product.discard
         respond_with(@product, status: 204)
       end
 

@@ -1,4 +1,5 @@
-# encoding: UTF-8
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe 'Product Details', type: :feature do
@@ -46,6 +47,31 @@ describe 'Product Details', type: :feature do
       fill_in "product_slug", with: 'x'
       click_button "Update"
       expect(page).to have_content("successfully updated!")
+    end
+  end
+
+  context "when default price is deleted" do
+    it "does not show the master price", js: true do
+      product = create(:product, name: 'Bún thịt nướng', sku: 'A100',
+              description: 'lorem ipsum', available_on: '2013-08-14 01:02:03')
+
+      visit spree.admin_path
+      click_nav "Products"
+      within_row(1) { click_icon :edit }
+
+      click_link 'Prices'
+
+      within "#spree_price_#{product.master.default_price.id}" do
+        accept_alert do
+          click_icon :trash
+        end
+      end
+      expect(page).to have_content("Price has been successfully removed")
+
+      click_link 'Product Details'
+
+      expect(page).not_to have_field('product_price')
+      expect(page).to have_content('This Product has no price in the default currency (USD).')
     end
   end
 

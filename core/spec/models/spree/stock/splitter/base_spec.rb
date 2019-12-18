@@ -1,18 +1,20 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
   module Stock
     module Splitter
-      describe Base, type: :model do
-        let(:packer) { build(:stock_packer) }
+      RSpec.describe Base, type: :model do
+        let(:stock_location) { mock_model(Spree::StockLocation) }
 
         it 'continues to splitter chain' do
-          splitter1 = Base.new(packer)
-          splitter2 = Base.new(packer, splitter1)
+          splitter_one = Base.new(stock_location)
+          splitter_two = Base.new(stock_location, splitter_one)
           packages = []
 
-          expect(splitter1).to receive(:split).with(packages)
-          splitter2.split(packages)
+          expect(splitter_one).to receive(:split).with(packages)
+          splitter_two.split(packages)
         end
       end
     end

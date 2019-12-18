@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 feature 'Promotion with option value rule' do
@@ -14,7 +16,7 @@ feature 'Promotion with option value rule' do
   end
 
   scenario "adding an option value rule", js: true do
-    select2 "Option Value(s)", from: "Add rule of type"
+    select "Option Value(s)", from: "Discount Rules"
     within("#rules_container") { click_button "Add" }
 
     within("#rules_container .promotion-block") do
@@ -31,6 +33,8 @@ feature 'Promotion with option value rule' do
 
     within('#rules_container') { click_button "Update" }
 
+    expect(page).to have_content("has been successfully updated")
+
     first_rule = promotion.rules.reload.first
     expect(first_rule.class).to eq Spree::Promotion::Rules::OptionValue
     expect(first_rule.preferred_eligible_values).to eq Hash[product.id => [option_value.id]]
@@ -42,7 +46,7 @@ feature 'Promotion with option value rule' do
       option_value.update!(name: xss_string)
     end
     scenario "adding an option value rule", js: true do
-      select2 "Option Value(s)", from: "Add rule of type"
+      select "Option Value(s)", from: "Discount Rules"
       within("#rules_container") { click_button "Add" }
 
       within("#rules_container .promotion-block") do
@@ -72,11 +76,12 @@ feature 'Promotion with option value rule' do
     end
 
     scenario "deleting a product", js: true do
-      within(".promo-rule-option-value:last-child") do
-        find(".remove").click
-      end
+      expect(page).to have_css('.promo-rule-option-value', count: 2)
+      all('.promo-rule-option-value')[1].find('.remove').click
 
       within('#rules_container') { click_button "Update" }
+
+      expect(page).to have_content("has been successfully updated")
 
       first_rule = promotion.rules.reload.first
       expect(first_rule.preferred_eligible_values).to eq Hash[variant1.product_id => variant1.option_values.pluck(:id)]

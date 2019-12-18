@@ -1,6 +1,30 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Reimbursement, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Reimbursement, type: :model do
+  describe ".create" do
+    let(:customer_return) { create(:customer_return) }
+    let(:order) { customer_return.order }
+    let(:reimbursement) { build(:reimbursement, order: order) }
+
+    subject { reimbursement.save }
+
+    context "when total is not present" do
+      before do
+        allow(reimbursement).to receive(:calculated_total) { 100 }
+      end
+
+      it { expect { subject }.to change(reimbursement, :total).from(nil).to(100.0) }
+    end
+
+    context "when total is present" do
+      let(:reimbursement) { build(:reimbursement, order: order, total: 10) }
+
+      it { expect { subject }.not_to change(reimbursement, :total).from(10) }
+    end
+  end
+
   describe ".before_create" do
     describe "#generate_number" do
       context "number is assigned" do
@@ -53,7 +77,7 @@ describe Spree::Reimbursement, type: :model do
     let(:shipping_method)         { create :shipping_method, zones: [tax_zone] }
     let(:variant)                 { create :variant }
     let(:order)                   { create(:order_with_line_items, state: 'payment', line_items_attributes: [{ variant: variant, price: line_items_price }], shipment_cost: 0, shipping_method: shipping_method) }
-    let(:line_items_price)        { BigDecimal.new(10) }
+    let(:line_items_price)        { BigDecimal(10) }
     let(:line_item)               { order.line_items.first }
     let(:inventory_unit)          { line_item.inventory_units.first }
     let(:payment)                 { build(:payment, amount: payment_amount, order: order, state: 'checkout') }
@@ -64,8 +88,9 @@ describe Spree::Reimbursement, type: :model do
     let!(:default_refund_reason) { Spree::RefundReason.find_or_create_by!(name: Spree::RefundReason::RETURN_PROCESSING_REASON, mutable: false) }
 
     let(:reimbursement) { create(:reimbursement, customer_return: customer_return, order: order, return_items: [return_item]) }
+    let(:created_by_user) { create(:user, email: 'user@email.com') }
 
-    subject { reimbursement.perform! }
+    subject { reimbursement.perform!(created_by: created_by_user) }
 
     before do
       order.shipments.each do |shipment|
@@ -73,7 +98,7 @@ describe Spree::Reimbursement, type: :model do
         shipment.update_column('state', 'shipped')
       end
       order.reload
-      order.update!
+      order.recalculate
       if payment
         payment.save!
         order.next! # confirm
@@ -121,15 +146,16 @@ describe Spree::Reimbursement, type: :model do
         return_item.reload
         expect(return_item.included_tax_total).to be > 0
         expect(return_item.included_tax_total).to eq line_item.included_tax_total
-        expect(reimbursement.total).to eq((line_item.pre_tax_amount + line_item.included_tax_total).round(2, :down))
-        expect(Spree::Refund.last.amount).to eq((line_item.pre_tax_amount + line_item.included_tax_total).round(2, :down))
+        expect(reimbursement.total).to eq((line_item.total_excluding_vat + line_item.included_tax_total).round(2, :down))
+        expect(Spree::Refund.last.amount).to eq((line_item.total_excluding_vat + line_item.included_tax_total).round(2, :down))
       end
     end
 
     context 'when reimbursement cannot be fully performed' do
       let!(:non_return_refund) { create(:refund, amount: 1, payment: payment) }
 
-      it 'raises IncompleteReimbursement error' do
+      it 'does not send a reimbursement email and raises IncompleteReimbursement error' do
+        expect(Spree::ReimbursementMailer).not_to receive(:reimbursement_email)
         expect { subject }.to raise_error(Spree::Reimbursement::IncompleteReimbursementError)
       end
     end
@@ -143,7 +169,7 @@ describe Spree::Reimbursement, type: :model do
       end
     end
 
-    it "triggers the reimbursement mailer to be sent" do
+    it "triggers the reimbursement mailer to be sent via subscribed event" do
       expect(Spree::ReimbursementMailer).to receive(:reimbursement_email).with(reimbursement.id) { double(deliver_later: true) }
       subject
     end
@@ -228,13 +254,14 @@ describe Spree::Reimbursement, type: :model do
   end
 
   describe "#return_all" do
-    subject { reimbursement.return_all }
+    subject { reimbursement.return_all(created_by: created_by_user) }
 
     let!(:default_refund_reason) { Spree::RefundReason.find_or_create_by!(name: Spree::RefundReason::RETURN_PROCESSING_REASON, mutable: false) }
     let(:order)                  { create(:shipped_order, line_items_count: 1) }
     let(:inventory_unit)         { order.inventory_units.first }
     let(:return_item)            { build(:return_item, inventory_unit: inventory_unit) }
     let(:reimbursement)          { build(:reimbursement, order: order, return_items: [return_item]) }
+    let(:created_by_user) { create(:user, email: 'user@email.com') }
 
     it "accepts all the return items" do
       expect { subject }.to change { return_item.acceptance_status }.to "accepted"

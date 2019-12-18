@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   class Order < Spree::Base
     module Payments
@@ -44,9 +46,9 @@ module Spree
 
           payment.public_send(method)
         end
-      rescue Core::GatewayError => e
+      rescue Core::GatewayError => error
         result = !!Spree::Config[:allow_checkout_on_gateway_error]
-        errors.add(:base, e.message) && (return result)
+        errors.add(:base, error.message) && (return result)
       end
     end
   end

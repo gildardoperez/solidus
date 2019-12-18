@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::OrderedPropertyValueList do
+require 'rails_helper'
+
+RSpec.describe Spree::OrderedPropertyValueList do
   #
   # Using ProductProperty as a subject
   # since it includes OrderedPropertyValueList

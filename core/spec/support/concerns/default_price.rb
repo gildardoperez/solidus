@@ -1,6 +1,8 @@
-shared_examples_for "default_price" do
+# frozen_string_literal: true
+
+RSpec.shared_examples_for "default_price" do
   let(:model)        { described_class }
-  subject(:instance) { FactoryGirl.build(model.name.demodulize.downcase.to_sym) }
+  subject(:instance) { FactoryBot.build(model.name.demodulize.downcase.to_sym) }
 
   describe '.has_one :default_price' do
     let(:default_price_association) { model.reflect_on_association(:default_price) }
@@ -30,5 +32,13 @@ shared_examples_for "default_price" do
   describe '#has_default_price?' do
     subject { super().has_default_price? }
     it { is_expected.to be_truthy }
+
+    context 'when default price is discarded' do
+      before do
+        instance.default_price.discard
+      end
+
+      it { is_expected.to be_falsey }
+    end
   end
 end

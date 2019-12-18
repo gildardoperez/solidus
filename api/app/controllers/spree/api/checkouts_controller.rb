@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class CheckoutsController < Spree::Api::BaseController
@@ -12,9 +14,6 @@ module Spree
       # TODO: Remove this after deprecated usage in #update is removed
       include Spree::Core::ControllerHelpers::PaymentParameters
 
-      # This before_action comes from Spree::Core::ControllerHelpers::Order
-      skip_before_action :set_current_order
-
       def next
         authorize! :update, @order, order_token
         if !expected_total_ok?(params[:expected_total])
@@ -24,8 +23,8 @@ module Spree
         authorize! :update, @order, order_token
         @order.next!
         respond_with(@order, default_template: 'spree/api/orders/show', status: 200)
-      rescue StateMachines::InvalidTransition => e
-        logger.error("invalid_transition #{e.event} from #{e.from} for #{e.object.class.name}. Error: #{e.inspect}")
+      rescue StateMachines::InvalidTransition => error
+        logger.error("invalid_transition #{error.event} from #{error.from} for #{error.object.class.name}. Error: #{error.inspect}")
         respond_with(@order, default_template: 'spree/api/orders/could_not_transition', status: 422)
       end
 
@@ -43,8 +42,8 @@ module Spree
           @order.complete!
           respond_with(@order, default_template: 'spree/api/orders/show', status: 200)
         end
-      rescue StateMachines::InvalidTransition => e
-        logger.error("invalid_transition #{e.event} from #{e.from} for #{e.object.class.name}. Error: #{e.inspect}")
+      rescue StateMachines::InvalidTransition => error
+        logger.error("invalid_transition #{error.event} from #{error.from} for #{error.object.class.name}. Error: #{error.inspect}")
         respond_with(@order, default_template: 'spree/api/orders/could_not_transition', status: 422)
       end
 
@@ -115,11 +114,13 @@ module Spree
 
       def after_update_attributes
         if params[:order] && params[:order][:coupon_code].present?
-          handler = PromotionHandler::Coupon.new(@order).apply
+          Spree::Deprecation.warn('This method is deprecated. Please use `Spree::Api::CouponCodesController#create` endpoint instead.')
+          handler = PromotionHandler::Coupon.new(@order)
+          handler.apply
 
           if handler.error.present?
             @coupon_message = handler.error
-            respond_with(@order, default_template: 'spree/api/orders/could_not_apply_coupon')
+            respond_with(@order, default_template: 'spree/api/orders/could_not_apply_coupon', status: 422)
             return true
           end
         end

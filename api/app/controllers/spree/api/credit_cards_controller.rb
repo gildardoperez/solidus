@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class CreditCardsController < Spree::Api::BaseController
@@ -16,7 +18,7 @@ module Spree
       end
 
       def update
-        if @credit_card.update_attributes(credit_card_update_params)
+        if @credit_card.update(credit_card_update_params)
           respond_with(@credit_card, default_template: :show)
         else
           invalid_resource!(@credit_card)

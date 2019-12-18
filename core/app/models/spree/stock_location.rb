@@ -1,9 +1,13 @@
+# frozen_string_literal: true
+
 module Spree
   # Records the name and addresses from which stock items are fulfilled in
   # cartons.
   #
   class StockLocation < Spree::Base
     class InvalidMovementError < StandardError; end
+
+    acts_as_list
 
     has_many :shipments
     has_many :stock_items, dependent: :delete_all, inverse_of: :stock_location
@@ -12,8 +16,8 @@ module Spree
     has_many :user_stock_locations, dependent: :delete_all
     has_many :users, through: :user_stock_locations
 
-    belongs_to :state, class_name: 'Spree::State'
-    belongs_to :country, class_name: 'Spree::Country'
+    belongs_to :state, class_name: 'Spree::State', optional: true
+    belongs_to :country, class_name: 'Spree::Country', optional: true
 
     has_many :shipping_method_stock_locations, dependent: :destroy
     has_many :shipping_methods, through: :shipping_method_stock_locations
@@ -24,8 +28,10 @@ module Spree
     scope :active, -> { where(active: true) }
     scope :order_default, -> { order(default: :desc, name: :asc) }
 
-    after_create :create_stock_items, if: "self.propagate_all_variants?"
+    after_create :create_stock_items, if: :propagate_all_variants?
     after_save :ensure_one_default
+
+    self.whitelisted_ransackable_attributes = %w[name]
 
     def state_text
       state.try(:abbr) || state.try(:name) || state_name
@@ -93,7 +99,7 @@ module Spree
 
     def move(variant, quantity, originator = nil)
       if quantity < 1 && !stock_item(variant)
-        raise InvalidMovementError.new(Spree.t(:negative_movement_absent_item))
+        raise InvalidMovementError.new(I18n.t('spree.negative_movement_absent_item'))
       end
       stock_item_or_create(variant).stock_movements.create!(quantity: quantity,
                                                             originator: originator)

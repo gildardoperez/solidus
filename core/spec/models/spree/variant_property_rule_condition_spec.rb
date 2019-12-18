@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::VariantPropertyRuleCondition, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::VariantPropertyRuleCondition, type: :model do
   context "touching" do
     let(:rule_condition) { create(:variant_property_rule_condition) }
 

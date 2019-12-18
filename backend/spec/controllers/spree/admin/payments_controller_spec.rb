@@ -1,10 +1,12 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 module Spree
   module Admin
     describe PaymentsController, type: :controller do
       before do
-        allow(controller).to receive_messages spree_current_user: user
+        allow(controller).to receive_messages try_spree_current_user: user
       end
 
       let(:user) { create(:admin_user) }
@@ -13,7 +15,7 @@ module Spree
       describe '#create' do
         context "with a valid credit card" do
           let(:order) { create(:order_with_line_items, state: "payment") }
-          let(:payment_method) { create(:credit_card_payment_method, available_to_admin: true) }
+          let(:payment_method) { create(:credit_card_payment_method, available_to_admin: true, available_to_users: false) }
           let(:attributes) do
             {
               order_id: order.number,

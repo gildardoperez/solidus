@@ -1,10 +1,8 @@
-require 'factory_girl'
-require 'ffaker'
+# frozen_string_literal: true
 
-FactoryGirl.define do
-  sequence(:random_code)        { FFaker::Lorem.characters(10) }
-  sequence(:random_description) { FFaker::Lorem.paragraphs(1 + Kernel.rand(5)).join("\n") }
-  sequence(:random_email)       { FFaker::Internet.email }
-  sequence(:random_string)      { FFaker::Lorem.sentence }
+require 'factory_bot'
+
+FactoryBot.define do
   sequence(:sku) { |n| "SKU-#{n}" }
+  sequence(:email) { |n| "email#{n}@example.com" }
 end

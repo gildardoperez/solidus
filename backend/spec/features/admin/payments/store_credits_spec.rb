@@ -1,11 +1,13 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 RSpec.describe 'Store credits', type: :feature do
   stub_authorization!
 
-  let(:order) { FactoryGirl.create(:completed_order_with_totals) }
+  let(:order) { FactoryBot.create(:completed_order_with_totals) }
   let(:payment) do
-    FactoryGirl.create(
+    FactoryBot.create(
       :store_credit_payment,
       order: order,
       amount: 20

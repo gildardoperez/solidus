@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class OrdersController < Spree::Api::BaseController
@@ -7,10 +9,13 @@ module Spree
       class_attribute :admin_order_attributes
       self.admin_order_attributes = [:import, :number, :completed_at, :locked_at, :channel, :user_id, :created_at]
 
+      class_attribute :admin_payment_attributes
+      self.admin_payment_attributes = [:payment_method, :amount, :state, source: {}]
+
       skip_before_action :authenticate_user, only: :apply_coupon_code
 
       before_action :find_order, except: [:create, :mine, :current, :index]
-      around_action :lock_order, except: [:create, :mine, :current, :index]
+      around_action :lock_order, except: [:create, :mine, :current, :index, :show]
 
       # Dynamically defines our stores checkout steps to ensure we check authorization on each step.
       Spree::Order.checkout_steps.keys.each do |step|
@@ -27,8 +32,18 @@ module Spree
 
       def create
         authorize! :create, Order
-        @order = Spree::Core::Importer::Order.import(determine_order_user, order_params)
-        respond_with(@order, default_template: :show, status: 201)
+
+        if can?(:admin, Order)
+          @order = Spree::Core::Importer::Order.import(determine_order_user, order_params)
+          respond_with(@order, default_template: :show, status: 201)
+        else
+          @order = Spree::Order.create!(user: current_api_user, store: current_store)
+          if @order.contents.update_cart order_params
+            respond_with(@order, default_template: :show, status: 201)
+          else
+            invalid_resource!(@order)
+          end
+        end
       end
 
       def empty
@@ -39,7 +54,17 @@ module Spree
 
       def index
         authorize! :index, Order
-        @orders = paginate(Spree::Order.ransack(params[:q]).result)
+        orders_includes = [
+          { user: :store_credits },
+          :line_items,
+          :valid_store_credit_payments
+        ]
+        @orders = paginate(
+          Spree::Order
+            .ransack(params[:q])
+            .result
+            .includes(orders_includes)
+        )
         respond_with(@orders)
       end
 
@@ -80,6 +105,8 @@ module Spree
       end
 
       def apply_coupon_code
+        Spree::Deprecation.warn('This method is deprecated. Please use `Spree::Api::CouponCodesController#create` endpoint instead.')
+
         authorize! :update, @order, order_token
         @order.coupon_code = params[:coupon_code]
         @handler = PromotionHandler::Coupon.new(@order).apply
@@ -131,8 +158,22 @@ module Spree
         end
       end
 
+      def permitted_payment_attributes
+        if can?(:admin, Spree::Payment)
+          super + admin_payment_attributes
+        else
+          super
+        end
+      end
+
       def find_order(_lock = false)
-        @order = Spree::Order.find_by!(number: params[:id])
+        @order = Spree::Order.
+          includes(line_items: [:adjustments, { variant: :images }],
+                   payments: :payment_method,
+                   shipments: {
+                     shipping_rates: { shipping_method: :zones, taxes: :tax_rate }
+                   }).
+          find_by!(number: params[:id])
       end
 
       def order_id

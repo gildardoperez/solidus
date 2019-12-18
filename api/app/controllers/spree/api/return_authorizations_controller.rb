@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class ReturnAuthorizationsController < Spree::Api::BaseController
       before_action :load_order
-      around_action :lock_order, only: [:create, :update, :destroy, :add, :receive, :cancel]
+      around_action :lock_order, only: [:create, :update, :destroy, :cancel]
 
       rescue_from Spree::Order::InsufficientStock, with: :insufficient_stock_error
 
@@ -48,7 +50,7 @@ module Spree
 
       def update
         @return_authorization = @order.return_authorizations.accessible_by(current_ability, :update).find(params[:id])
-        if @return_authorization.update_attributes(return_authorization_params)
+        if @return_authorization.update(return_authorization_params)
           respond_with(@return_authorization, default_template: :show)
         else
           invalid_resource!(@return_authorization)

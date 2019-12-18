@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe "Cancel items" do
@@ -32,7 +34,7 @@ describe "Cancel items" do
 
       click_button "Cancel Items"
       expect(page).to have_content("Inventory canceled")
-      expect(page).to have_content("1 x canceled")
+      expect(page).to have_content("1 x Canceled")
     end
   end
 

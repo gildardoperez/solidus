@@ -1,3 +1,7 @@
+# frozen_string_literal: true
+
+require 'discard'
+
 module Spree
   # Products represent an entity for sale in a store. Products can have
   # variations, called variants. Product properties include description,
@@ -12,6 +16,18 @@ module Spree
     friendly_id :slug_candidates, use: :history
 
     acts_as_paranoid
+    include Spree::ParanoiaDeprecations
+
+    include Discard::Model
+    self.discard_column = :deleted_at
+
+    after_discard do
+      variants_including_master.discard_all
+      self.product_option_types = []
+      self.product_properties = []
+      self.classifications.destroy_all
+      self.product_promotion_rules = []
+    end
 
     has_many :product_option_types, dependent: :destroy, inverse_of: :product
     has_many :option_types, through: :product_option_types
@@ -28,8 +44,8 @@ module Spree
     has_many :product_promotion_rules, dependent: :destroy
     has_many :promotion_rules, through: :product_promotion_rules
 
-    belongs_to :tax_category, class_name: 'Spree::TaxCategory'
-    belongs_to :shipping_category, class_name: 'Spree::ShippingCategory', inverse_of: :products
+    belongs_to :tax_category, class_name: 'Spree::TaxCategory', optional: true
+    belongs_to :shipping_category, class_name: 'Spree::ShippingCategory', inverse_of: :products, optional: true
 
     has_one :master,
       -> { where(is_master: true).with_deleted },
@@ -60,27 +76,41 @@ module Spree
     end
 
     MASTER_ATTRIBUTES = [
-      :rebuild_vat_prices, :sku, :price, :currency, :display_amount, :display_price, :weight,
-      :height, :width, :depth, :cost_currency, :price_in, :price_for, :amount_in, :cost_price
+      :cost_currency,
+      :cost_price,
+      :depth,
+      :height,
+      :price,
+      :sku,
+      :weight,
+      :width,
     ]
     MASTER_ATTRIBUTES.each do |attr|
       delegate :"#{attr}", :"#{attr}=", to: :find_or_build_master
     end
 
-    delegate :display_amount, :display_price, :has_default_price?, to: :find_or_build_master
+    delegate :amount_in,
+             :display_amount,
+             :display_price,
+             :has_default_price?,
+             :images,
+             :price_for,
+             :price_in,
+             :rebuild_vat_prices=,
+             to: :find_or_build_master
 
-    delegate :images, to: :master, prefix: true
-    alias_method :images, :master_images
+    alias_method :master_images, :images
 
     has_many :variant_images, -> { order(:position) }, source: :images, through: :variants_including_master
 
     after_create :build_variants_from_option_values_hash, if: :option_values_hash
 
     after_destroy :punch_slug
+    after_discard :punch_slug
 
     after_initialize :ensure_master
 
-    after_save :run_touch_callbacks, if: :changed?
+    after_save :run_touch_callbacks, if: :saved_changes?
     after_touch :touch_taxons
 
     before_validation :normalize_slug, on: :update
@@ -101,7 +131,11 @@ module Spree
     alias :options :product_option_types
 
     self.whitelisted_ransackable_associations = %w[stores variants_including_master master variants]
-    self.whitelisted_ransackable_attributes = %w[slug]
+    self.whitelisted_ransackable_attributes = %w[name slug]
+
+    def self.ransackable_scopes(_auth_object = nil)
+      %i(with_deleted with_variant_sku_cont)
+    end
 
     # @return [Boolean] true if there are any variants
     def has_variants?
@@ -156,7 +190,7 @@ module Spree
     # @return [Hash] option_type as keys, array of variants as values.
     def categorise_variants_from_option(opt_type, pricing_options = Spree::Config.default_pricing_options)
       return {} unless option_types.include?(opt_type)
-      variants.with_prices(pricing_options).group_by { |v| v.option_values.detect { |o| o.option_type == opt_type } }
+      variants.with_prices(pricing_options).group_by { |variant| variant.option_values.detect { |option| option.option_type == opt_type } }
     end
     deprecate :categorise_variants_from_option, deprecator: Spree::Deprecation
 
@@ -263,12 +297,13 @@ module Spree
     # variants. If all else fails, will return a new image object.
     # @return [Spree::Image] the image to display
     def display_image
+      Spree::Deprecation.warn('Spree::Product#display_image is DEPRECATED. Choose an image from Spree::Product#gallery instead.')
       images.first || variant_images.first || Spree::Image.new
     end
 
     # Finds the variant property rule that matches the provided option value ids.
     #
-    # @param [Array<Integer>] list of option value ids
+    # @param option_value_ids [Array<Integer>] list of option value ids
     # @return [Spree::VariantPropertyRule] the matching variant property rule
     def find_variant_property_rule(option_value_ids)
       variant_property_rules.find do |rule|
@@ -276,11 +311,19 @@ module Spree
       end
     end
 
+    # The gallery for the product, which represents all the images
+    # associated with it, including those on its variants
+    #
+    # @return [Spree::Gallery] the media for a variant
+    def gallery
+      @gallery ||= Spree::Config.product_gallery_class.new(self)
+    end
+
     private
 
     def any_variants_not_track_inventory?
       if variants_including_master.loaded?
-        variants_including_master.any? { |v| !v.should_track_inventory? }
+        variants_including_master.any? { |variant| !variant.should_track_inventory? }
       else
         !Spree::Config.track_inventory_levels || variants_including_master.where(track_inventory: false).exists?
       end
@@ -336,13 +379,15 @@ module Spree
       run_callbacks(:touch)
     end
 
-    # Iterate through this products taxons and taxonomies and touch their timestamps in a batch
+    # Iterate through this product's taxons and taxonomies and touch their timestamps in a batch
     def touch_taxons
       taxons_to_touch = taxons.map(&:self_and_ancestors).flatten.uniq
-      Spree::Taxon.where(id: taxons_to_touch.map(&:id)).update_all(updated_at: Time.current)
+      unless taxons_to_touch.empty?
+        Spree::Taxon.where(id: taxons_to_touch.map(&:id)).update_all(updated_at: Time.current)
 
-      taxonomy_ids_to_touch = taxons_to_touch.map(&:taxonomy_id).flatten.uniq
-      Spree::Taxonomy.where(id: taxonomy_ids_to_touch).update_all(updated_at: Time.current)
+        taxonomy_ids_to_touch = taxons_to_touch.map(&:taxonomy_id).flatten.uniq
+        Spree::Taxonomy.where(id: taxonomy_ids_to_touch).update_all(updated_at: Time.current)
+      end
     end
 
     def remove_taxon(taxon)

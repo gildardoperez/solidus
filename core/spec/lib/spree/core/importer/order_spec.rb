@@ -1,8 +1,10 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
   module Core
-    describe Importer::Order do
+    RSpec.describe Importer::Order do
       let!(:store) { create(:store) }
       let!(:country) { create(:country) }
       let!(:state) { country.states.first || create(:state, country: country) }
@@ -128,8 +130,11 @@ module Spree
       end
 
       it 'can build an order from API with variant sku' do
-        params = { line_items_attributes: {
-                     "0" => { sku: sku, quantity: 5 } } }
+        params = {
+          line_items_attributes: {
+            "0" => { sku: sku, quantity: 5 }
+          }
+        }
 
         order = Importer::Order.import(user, params)
 
@@ -240,9 +245,9 @@ module Spree
         end
       end
 
-      context 'variant was deleted' do
+      context 'variant was soft-deleted' do
         it 'raise error as variant shouldnt be found' do
-          variant.product.destroy
+          variant.product.discard
           hash = { sku: variant.sku }
           expect {
             Importer::Order.ensure_variant_id_from_params(hash)
@@ -275,14 +280,17 @@ module Spree
 
       context "shipments" do
         let(:params) do
-          { shipments_attributes: [
-              { tracking: '123456789',
+          {
+            shipments_attributes: [
+              {
+                tracking: '123456789',
                 cost: '14.99',
                 shipping_method: shipping_method.name,
                 stock_location: stock_location.name,
                 inventory_units: [{ sku: sku }]
               }
-          ] }
+            ]
+          }
         end
 
         it 'ensures variant exists and is not deleted' do
@@ -323,7 +331,8 @@ module Spree
             {
               completed_at: 2.days.ago,
               shipments_attributes: [
-                { tracking: '123456789',
+                {
+                  tracking: '123456789',
                   cost: '4.99',
                   shipped_at: 1.day.ago,
                   shipping_method: shipping_method.name,
@@ -351,12 +360,40 @@ module Spree
             expect(order.shipment_total.to_f).to eq 4.99
           end
         end
+
+        context "when line items and shipments are present" do
+          let(:params) do
+            {
+              completed_at: 2.days.ago,
+              line_items_attributes: line_items,
+              shipments_attributes: [
+                {
+                  tracking: '123456789',
+                  cost: '4.99',
+                  shipped_at: 1.day.ago,
+                  shipping_method: shipping_method.name,
+                  stock_location: stock_location.name,
+                  inventory_units: [{ sku: sku }]
+                }
+              ]
+            }
+          end
+
+          it 'builds quantities properly' do
+            order = Importer::Order.import(user, params)
+            line_item = order.line_items.first
+            expect(line_item.quantity).to eq(5)
+          end
+        end
       end
 
       it 'adds adjustments' do
-        params = { adjustments_attributes: [
+        params = {
+          adjustments_attributes: [
             { label: 'Shipping Discount', amount: -4.99 },
-            { label: 'Promotion Discount', amount: -3.00 }] }
+            { label: 'Promotion Discount', amount: -3.00 }
+          ]
+        }
 
         order = Importer::Order.import(user, params)
         expect(order.adjustments.all?(&:finalized?)).to be true

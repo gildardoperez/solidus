@@ -1,7 +1,11 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class StockItemsController < Spree::Api::BaseController
       before_action :load_stock_location, only: [:index, :show, :create]
+
+      rescue_from Spree::StockLocation::InvalidMovementError, with: :render_stock_items_error
 
       def index
         @stock_items = paginate(scope.ransack(params[:q]).result)
@@ -36,7 +40,7 @@ module Spree
         adjustment -= @stock_item.count_on_hand if params[:stock_item][:force]
 
         Spree::StockItem.transaction do
-          if @stock_item.update_attributes(stock_item_params)
+          if @stock_item.update(stock_item_params)
             adjust_stock_item_count_on_hand(adjustment)
             respond_with(@stock_item, status: 200, default_template: :show)
           else
@@ -47,7 +51,7 @@ module Spree
 
       def destroy
         @stock_item = Spree::StockItem.accessible_by(current_ability, :destroy).find(params[:id])
-        @stock_item.destroy
+        @stock_item.discard
         respond_with(@stock_item, status: 204)
       end
 
@@ -73,10 +77,14 @@ module Spree
 
       def adjust_stock_item_count_on_hand(count_on_hand_adjustment)
         if @stock_item.count_on_hand + count_on_hand_adjustment < 0
-          raise StockLocation::InvalidMovementError.new(Spree.t(:stock_not_below_zero))
+          raise StockLocation::InvalidMovementError.new(t('spree.api.stock_not_below_zero'))
         end
         @stock_movement = @stock_location.move(@stock_item.variant, count_on_hand_adjustment, current_api_user)
         @stock_item = @stock_movement.stock_item
+      end
+
+      def render_stock_items_error
+        render json: { error: t('spree.api.stock_not_below_zero') }, status: 422
       end
     end
   end

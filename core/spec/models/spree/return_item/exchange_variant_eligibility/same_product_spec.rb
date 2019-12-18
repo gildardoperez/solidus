@@ -1,8 +1,10 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
   module ReturnItem::ExchangeVariantEligibility
-    describe SameProduct, type: :model do
+    RSpec.describe SameProduct, type: :model do
       describe ".eligible_variants" do
         context "product has no variants" do
           it "returns the master variant for the same product" do
@@ -16,7 +18,7 @@ module Spree
         context "product has variants" do
           it "returns all variants for the same product" do
             product = create(:product, variants: Array.new(3) { create(:variant) })
-            product.variants.map { |v| v.stock_items.first.update_column(:count_on_hand, 10) }
+            product.variants.map { |value| value.stock_items.first.update_column(:count_on_hand, 10) }
 
             expect(SameProduct.eligible_variants(product.variants.first).sort).to eq product.variants.sort
           end

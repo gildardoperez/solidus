@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-shared_examples "an invalid state transition" do |status, expected_status|
+require 'rails_helper'
+
+RSpec.shared_examples "an invalid state transition" do |status, expected_status|
   let(:status) { status }
 
   it "cannot transition to #{expected_status}" do
@@ -8,7 +10,7 @@ shared_examples "an invalid state transition" do |status, expected_status|
   end
 end
 
-describe Spree::ReturnItem, type: :model do
+RSpec.describe Spree::ReturnItem, type: :model do
   all_reception_statuses = Spree::ReturnItem.state_machines[:reception_status].states.map(&:name).map(&:to_s)
   all_acceptance_statuses = Spree::ReturnItem.state_machines[:acceptance_status].states.map(&:name).map(&:to_s)
 
@@ -19,13 +21,13 @@ describe Spree::ReturnItem, type: :model do
   describe '#receive!' do
     let(:now)            { Time.current }
     let(:order)          { create(:shipped_order) }
-    let(:inventory_unit) { create(:inventory_unit, order: order, state: 'shipped') }
+    let(:inventory_unit) { create(:inventory_unit, state: 'shipped') }
     let!(:customer_return) { create(:customer_return_without_return_items, return_items: [return_item], stock_location_id: inventory_unit.shipment.stock_location_id) }
     let(:return_item) { create(:return_item, inventory_unit: inventory_unit) }
 
     before do
-      inventory_unit.update_attributes!(state: 'shipped')
-      return_item.update_attributes!(reception_status: 'awaiting')
+      inventory_unit.update!(state: 'shipped')
+      return_item.update!(reception_status: 'awaiting')
       allow(return_item).to receive(:eligible_for_return?).and_return(true)
     end
 
@@ -41,11 +43,20 @@ describe Spree::ReturnItem, type: :model do
       subject
     end
 
+    context 'when the `skip_customer_return_processing` flag is not set to true' do
+      before { return_item.skip_customer_return_processing = false }
+
+      it 'shows a deprecation warning' do
+        expect(Spree::Deprecation).to receive(:warn)
+        subject
+      end
+    end
+
     context 'when there is a received return item with the same inventory unit' do
       let!(:return_item_with_dupe_inventory_unit) { create(:return_item, inventory_unit: inventory_unit, reception_status: 'received') }
 
       before do
-        assert_raises(StateMachines::InvalidTransition) { subject }
+        expect { subject }.to raise_error { StateMachines::InvalidTransition }
       end
 
       it 'does not receive the return item' do
@@ -58,7 +69,7 @@ describe Spree::ReturnItem, type: :model do
     end
 
     context 'when the received item is actually the exchange (aka customer changed mind about exchange)' do
-      let(:exchange_inventory_unit) { create(:inventory_unit, order: order, state: 'shipped') }
+      let(:exchange_inventory_unit) { create(:inventory_unit, state: 'shipped') }
       let!(:return_item_with_exchange) { create(:return_item, inventory_unit: inventory_unit, exchange_inventory_unit: exchange_inventory_unit) }
       let!(:return_item_in_lieu) { create(:return_item, inventory_unit: exchange_inventory_unit) }
 
@@ -80,9 +91,9 @@ describe Spree::ReturnItem, type: :model do
       let(:stock_item) { stock_location.stock_item(inventory_unit.variant) }
 
       before do
-        inventory_unit.update_attributes!(state: 'shipped')
-        return_item.update_attributes!(reception_status: 'awaiting')
-        stock_location.update_attributes!(restock_inventory: true)
+        inventory_unit.update!(state: 'shipped')
+        return_item.update!(reception_status: 'awaiting')
+        stock_location.update!(restock_inventory: true)
       end
 
       it 'increases the count on hand' do
@@ -91,9 +102,9 @@ describe Spree::ReturnItem, type: :model do
 
       context 'when variant does not track inventory' do
         before do
-          inventory_unit.update_attributes!(state: 'shipped')
-          inventory_unit.variant.update_attributes!(track_inventory: false)
-          return_item.update_attributes!(reception_status: 'awaiting')
+          inventory_unit.update!(state: 'shipped')
+          inventory_unit.variant.update!(track_inventory: false)
+          return_item.update!(reception_status: 'awaiting')
         end
 
         it 'does not increase the count on hand' do
@@ -103,7 +114,7 @@ describe Spree::ReturnItem, type: :model do
 
       context "when the stock location's restock_inventory is false" do
         before do
-          stock_location.update_attributes!(restock_inventory: false)
+          stock_location.update!(restock_inventory: false)
         end
 
         it 'does not increase the count on hand' do
@@ -112,7 +123,7 @@ describe Spree::ReturnItem, type: :model do
       end
 
       context "when the inventory unit's variant does not yet have a stock item for the stock location it was returned to" do
-        before { inventory_unit.variant.stock_items.destroy_all }
+        before { inventory_unit.variant.stock_items.each(&:really_destroy!) }
 
         it "creates a new stock item for the inventory unit with a count of 1" do
           expect { subject }.to change(Spree::StockItem, :count).by(1)
@@ -124,7 +135,7 @@ describe Spree::ReturnItem, type: :model do
 
       Spree::ReturnItem::INTERMEDIATE_RECEPTION_STATUSES.each do |status|
         context "when the item was #{status}" do
-          before { return_item.update_attributes!(reception_status: status) }
+          before { return_item.update!(reception_status: status) }
 
           it 'processes the inventory unit' do
             subject
@@ -140,13 +151,13 @@ describe Spree::ReturnItem, type: :model do
     end
   end
 
-  describe "#display_pre_tax_amount" do
+  describe "#display_total_excluding_vat" do
     let(:amount) { 21.22 }
     let(:included_tax_total) { 1.22 }
     let(:return_item) { build(:return_item, amount: amount, included_tax_total: included_tax_total) }
 
     it "returns a Spree::Money" do
-      expect(return_item.display_pre_tax_amount).to eq Spree::Money.new(amount - included_tax_total)
+      expect(return_item.display_total_excluding_vat).to eq Spree::Money.new(amount - included_tax_total)
     end
   end
 
@@ -222,7 +233,8 @@ describe Spree::ReturnItem, type: :model do
   end
 
   describe "#receive" do
-    let(:inventory_unit) { create(:inventory_unit, order: create(:shipped_order)) }
+    let(:order) { create(:shipped_order) }
+    let(:inventory_unit) { create(:inventory_unit, shipment: order.shipments.first) }
     let(:return_item)    { create(:return_item, reception_status: status, inventory_unit: inventory_unit) }
 
     subject { return_item.receive! }
@@ -281,7 +293,7 @@ describe Spree::ReturnItem, type: :model do
       subject { return_item.public_send("#{transition}!") }
       context "awaiting status" do
         before do
-          return_item.update_attributes!(reception_status: 'awaiting')
+          return_item.update!(reception_status: 'awaiting')
           allow(return_item).to receive(:eligible_for_return?).and_return(true)
         end
 
@@ -291,7 +303,7 @@ describe Spree::ReturnItem, type: :model do
         end
 
         it 'does not decrease inventory' do
-          expect(return_item).to_not receive(:process_inventory_unit)
+          expect(return_item).to_not receive(:process_inventory_unit!)
           subject
         end
 
@@ -558,7 +570,7 @@ describe Spree::ReturnItem, type: :model do
     end
   end
 
-  describe "exchange pre_tax_amount" do
+  describe "exchange amount" do
     let(:return_item) { build(:return_item) }
 
     context "the return item is intended to be exchanged" do
@@ -602,7 +614,6 @@ describe Spree::ReturnItem, type: :model do
           expect(subject).not_to be_persisted
           expect(subject.original_return_item).to eq return_item
           expect(subject.line_item).to eq return_item.inventory_unit.line_item
-          expect(subject.order).to eq return_item.inventory_unit.order
         end
       end
     end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Admin
     module AdjustmentsHelper
@@ -30,14 +32,14 @@ module Spree
 
       def display_shipment(shipment)
         parts = [
-          "#{Spree.t(:shipment)} ##{shipment.number}",
+          "#{t('spree.shipment')} ##{shipment.number}",
           shipment.display_cost
         ]
         safe_join(parts, "<br />".html_safe)
       end
 
       def display_order(_order)
-        Spree.t(:order)
+        t('spree.order')
       end
     end
   end

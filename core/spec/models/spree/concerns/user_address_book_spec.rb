@@ -1,7 +1,9 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
-  describe UserAddressBook do
+  RSpec.describe UserAddressBook do
     #
     # Using LegacyUser as a subject
     # since it uses the UserAddressBookExtension
@@ -75,7 +77,7 @@ module Spree
           end
 
           context "and changing another address field at the same time" do
-            let(:updated_address_attributes) { address.attributes.tap { |a| a[:first_name] = "Newbie" } }
+            let(:updated_address_attributes) { address.attributes.tap { |value| value[:first_name] = "Newbie" } }
 
             subject { user.save_in_address_book(updated_address_attributes, true) }
 
@@ -102,7 +104,7 @@ module Spree
         let(:address1) { create(:address) }
         let(:address2) { create(:address, firstname: "Different") }
         let(:updated_attrs) do
-          address2.attributes.tap { |a| a[:firstname] = "Johnny" }
+          address2.attributes.tap { |value| value[:firstname] = "Johnny" }
         end
 
         before do
@@ -189,8 +191,8 @@ module Spree
 
           it "archives address2" do
             subject
-            user_address2 = user.user_addresses.all_historical.find_by(address_id: address2.id)
-            expect(user_address2.archived).to be true
+            user_address_two = user.user_addresses.all_historical.find_by(address_id: address2.id)
+            expect(user_address_two.archived).to be true
           end
 
           context "via a new address that matches an archived one" do
@@ -254,7 +256,7 @@ module Spree
 
       context "when automatic_default_address preference is at a default of true" do
         before do
-          Spree::Config.automatic_default_address = true
+          stub_spree_preferences(automatic_default_address: true)
           expect(user).to receive(:save_in_address_book).with(kind_of(Hash), true)
           expect(user).to receive(:save_in_address_book).with(kind_of(Hash), false)
         end
@@ -267,7 +269,7 @@ module Spree
 
       context "when automatic_default_address preference is false" do
         before do
-          Spree::Config.automatic_default_address = false
+          stub_spree_preferences(automatic_default_address: false)
           expect(user).to receive(:save_in_address_book).with(kind_of(Hash), false).twice
           # and not the optional 2nd argument
         end
@@ -281,7 +283,7 @@ module Spree
       context "when address is nil" do
         context "when automatic_default_address preference is at a default of true" do
           before do
-            Spree::Config.automatic_default_address = true
+            stub_spree_preferences(automatic_default_address: true)
             expect(user).to receive(:save_in_address_book).with(kind_of(Hash), true).once
           end
 
@@ -303,7 +305,7 @@ module Spree
 
       context "when automatic_default_address preference is false" do
         before do
-          Spree::Config.automatic_default_address = false
+          stub_spree_preferences(automatic_default_address: false)
           expect(user).to receive(:save_in_address_book).with(kind_of(Hash), false).once
         end
 
@@ -315,42 +317,42 @@ module Spree
         end
 
         it "does not call save_in_address_book on bill address" do
-        order = build(:order)
-        order.bill_address = nil
+          order = build(:order)
+          order.bill_address = nil
 
-        user.persist_order_address(order)
+          user.persist_order_address(order)
         end
       end
     end
-  end
 
-  context "generating a new user with a ship_address at once" do
-    let(:ship_address) { build(:ship_address) }
-    subject { create(:user, ship_address: ship_address) }
+    describe "generating a new user with a ship_address at once" do
+      let(:ship_address) { build(:ship_address) }
+      subject { create(:user, ship_address: ship_address) }
 
-    it "stores the ship_address" do
-      expect(subject.ship_address).to eq ship_address
+      it "stores the ship_address" do
+        expect(subject.ship_address).to eq ship_address
+      end
+
+      it "is also available as default_address" do
+        expect(subject.default_address).to eq ship_address
+      end
     end
 
-    it "is also available as default_address" do
-      expect(subject.default_address).to eq ship_address
-    end
-  end
+    describe "ship_address=" do
+      let!(:user) { create(:user) }
+      let!(:address) { create(:address) }
 
-  describe "ship_address=" do
-    let!(:user) { create(:user) }
-    let!(:address) { create(:address) }
+      # https://github.com/solidusio/solidus/issues/1241
+      it "resets the association and persists" do
+        # Load (which will cache) the has_one association
+        expect(user.ship_address).to be_nil
 
-    # https://github.com/solidusio/solidus/issues/1241
-    it "resets the association and persists" do
-      # Load (which will cache) the has_one association
-      expect(user.ship_address).to be_nil
+        user.update!(ship_address: address)
+        expect(user.ship_address).to eq(address)
 
-      user.update!(ship_address: address)
-      expect(user.ship_address).to eq(address)
-
-      user.reload
-      expect(user.ship_address).to eq(address)
+        user.reload
+        expect(user.ship_address).to eq(address)
+      end
     end
   end
 end

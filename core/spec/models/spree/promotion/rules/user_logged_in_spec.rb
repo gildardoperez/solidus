@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Promotion::Rules::UserLoggedIn, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Promotion::Rules::UserLoggedIn, type: :model do
   let(:rule) { Spree::Promotion::Rules::UserLoggedIn.new }
 
   context "#eligible?(order)" do
@@ -20,6 +22,11 @@ describe Spree::Promotion::Rules::UserLoggedIn, type: :model do
         rule.eligible?(order)
         expect(rule.eligibility_errors.full_messages.first).
           to eq "You need to login before applying this coupon code."
+      end
+      it "sets an error code" do
+        rule.eligible?(order)
+        expect(rule.eligibility_errors.details[:base].first[:error_code]).
+          to eq :no_user_specified
       end
     end
   end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module PermissionSets
     class UserManagement < PermissionSets::Base
@@ -7,6 +9,9 @@ module Spree
         # Note: This does not work with accessible_by.
         # See https://github.com/solidusio/solidus/pull/1263
         can :update_email, Spree.user_class do |user|
+          user.spree_roles.none?
+        end
+        can :update_password, Spree.user_class do |user|
           user.spree_roles.none?
         end
 

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This class is responsible for saving payment sources in the user's "wallet"
 # for future use.  You can substitute your own class via
 # `Spree::Config.add_payment_sources_to_wallet_class`.
@@ -17,7 +19,7 @@ class Spree::Wallet::AddPaymentSourcesToWallet
       sources = payments.map(&:source).
         uniq.
         compact.
-        select { |p| p.try(:reusable?) }
+        select { |payment| payment.try(:reusable?) }
 
       # add valid sources to wallet and optionally set a default
       if sources.any?

@@ -1,6 +1,6 @@
-# coding: UTF-8
+# frozen_string_literal: true
 
-require 'spec_helper'
+require 'rails_helper'
 
 module ThirdParty
   class Extension < Spree::Base
@@ -9,7 +9,7 @@ module ThirdParty
   end
 end
 
-describe Spree::Product, type: :model do
+RSpec.describe Spree::Product, type: :model do
   context 'product instance' do
     let(:product) { create(:product) }
     let(:variant) { create(:variant, product: product) }
@@ -27,7 +27,7 @@ describe Spree::Product, type: :model do
         expect(clone.images.size).to eq(product.images.size)
       end
 
-      it 'calls #duplicate_extra' do
+      it 'calls #duplicate_extra', partial_double_verification: false do
         expect_any_instance_of(Spree::Product).to receive(:duplicate_extra) do |product, old_product|
           product.name = old_product.name.reverse
         end
@@ -111,9 +111,9 @@ describe Spree::Product, type: :model do
     end
 
     context "product has no variants" do
-      context "#destroy" do
+      context "#discard" do
         it "should set deleted_at value" do
-          product.destroy
+          product.discard
           expect(product.deleted_at).not_to be_nil
           expect(product.master.reload.deleted_at).not_to be_nil
         end
@@ -125,11 +125,11 @@ describe Spree::Product, type: :model do
         create(:variant, product: product)
       end
 
-      context "#destroy" do
+      context "#discard" do
         it "should set deleted_at value" do
-          product.destroy
+          product.discard
           expect(product.deleted_at).not_to be_nil
-          expect(product.variants_including_master.all? { |v| !v.deleted_at.nil? }).to be true
+          expect(product.variants_including_master).to all(be_discarded)
         end
       end
     end
@@ -153,7 +153,7 @@ describe Spree::Product, type: :model do
         before do
           product.master.default_price.currency = 'JPY'
           product.master.default_price.save!
-          Spree::Config[:currency] = 'JPY'
+          stub_spree_preferences(currency: 'JPY')
         end
 
         it "displays the currency in yen" do
@@ -176,8 +176,8 @@ describe Spree::Product, type: :model do
         expect(product).not_to be_available
       end
 
-      it "should not be available if destroyed" do
-        product.destroy
+      it "should not be available if soft-destroyed" do
+        product.discard
         expect(product).not_to be_available
       end
     end
@@ -217,6 +217,16 @@ describe Spree::Product, type: :model do
         it "returns only variants which have matching prices" do
           expect(product.variants_and_option_values_for).to contain_exactly(low, high)
           expect(product.variants_and_option_values_for(pricing_options)).to contain_exactly(low)
+        end
+      end
+
+      context 'when a variant has a fallback price' do
+        before do
+          low.prices.create(country_iso: nil)
+        end
+
+        it "returns that variant once" do
+          expect(product.variants_and_option_values_for.length).to eq(2)
         end
       end
     end
@@ -292,7 +302,7 @@ describe Spree::Product, type: :model do
 
       it "doesnt raise ReadOnlyRecord error" do
         Spree::StockMovement.create!(stock_item: stock_item, quantity: 1)
-        product.destroy
+        product.discard
       end
     end
 
@@ -314,7 +324,7 @@ describe Spree::Product, type: :model do
 
       it "renames slug on destroy" do
         old_slug = product.slug
-        product.destroy
+        product.discard
         expect(old_slug).to_not eq product.slug
       end
 
@@ -338,6 +348,46 @@ describe Spree::Product, type: :model do
         product2.save!
 
         expect(product2.slug).to eq 'test-456'
+      end
+    end
+
+    describe "#discard" do
+      let(:product) { create(:product, slug: 'my-awesome-product') }
+
+      it "destroys related associations" do
+        create(:variant, product: product)
+        product.option_types = [create(:option_type)]
+        product.master.images = [create(:image)]
+        product.taxons = [create(:taxon)]
+        product.properties = [create(:property)]
+
+        product.discard
+
+        product.reload
+        expect(product.option_types).to be_empty
+        expect(product.images).to be_empty
+        expect(product.taxons).to be_empty
+        expect(product.properties).to be_empty
+      end
+
+      it "removes from product promotion rules" do
+        promotion = create(:promotion)
+        rule = promotion.rules.create!(type: 'Spree::Promotion::Rules::Product', products: [product])
+
+        product.discard
+
+        rule.reload
+        expect(rule.products).to be_empty
+      end
+
+      it "replaces the slug" do
+        product.discard
+
+        expect(product.slug).to match /\A\d+_my-awesome-product\z/
+
+        # Ensure a new product can be created with the slug
+        new_product = create(:product, slug: 'my-awesome-product')
+        expect(new_product.slug).to eq('my-awesome-product')
       end
     end
 
@@ -431,7 +481,7 @@ describe Spree::Product, type: :model do
 
   context "#images" do
     let(:product) { create(:product) }
-    let(:image) { File.open(File.expand_path('../../../fixtures/thinking-cat.jpg', __FILE__)) }
+    let(:image) { File.open(File.expand_path('../../fixtures/thinking-cat.jpg', __dir__)) }
     let(:params) { { viewable_id: product.master.id, viewable_type: 'Spree::Variant', attachment: image, alt: "position 2", position: 2 } }
 
     before do
@@ -464,12 +514,12 @@ describe Spree::Product, type: :model do
 
   context '#total_on_hand' do
     it 'should be infinite if track_inventory_levels is false' do
-      Spree::Config[:track_inventory_levels] = false
+      stub_spree_preferences(track_inventory_levels: false)
       expect(build(:product, variants_including_master: [build(:master_variant)]).total_on_hand).to eql(Float::INFINITY)
     end
 
     it 'should be infinite if variant is on demand' do
-      Spree::Config[:track_inventory_levels] = true
+      stub_spree_preferences(track_inventory_levels: true)
       expect(build(:product, variants_including_master: [build(:on_demand_master_variant)]).total_on_hand).to eql(Float::INFINITY)
     end
 
@@ -520,6 +570,15 @@ describe Spree::Product, type: :model do
         expect(product.master.sku).to eq 'FOO'
         expect(product.sku).to eq 'FOO'
       end
+    end
+  end
+
+  describe '#gallery' do
+    let(:product) { Spree::Product.new }
+    subject { product.gallery }
+
+    it 'responds to #images' do
+      expect(subject).to respond_to(:images)
     end
   end
 end

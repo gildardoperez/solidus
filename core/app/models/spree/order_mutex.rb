@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module Spree
   class OrderMutex < Spree::Base
     class LockFailed < StandardError; end
 
-    belongs_to :order, class_name: "Spree::Order"
+    belongs_to :order, class_name: "Spree::Order", optional: true
 
     scope :expired, -> { where(arel_table[:created_at].lteq(Spree::Config[:order_mutex_max_age].seconds.ago)) }
 
@@ -25,7 +27,6 @@ module Spree
         end
 
         yield
-
       ensure
         order_mutex.destroy if order_mutex
       end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   # Manage and process a payment for an order, from a specific
   # source (e.g. `Spree::CreditCard`) using a specific payment method (e.g
@@ -13,9 +15,9 @@ module Spree
     NON_RISKY_AVS_CODES = ['B', 'D', 'H', 'J', 'M', 'Q', 'T', 'V', 'X', 'Y'].freeze
     RISKY_AVS_CODES     = ['A', 'C', 'E', 'F', 'G', 'I', 'K', 'L', 'N', 'O', 'P', 'R', 'S', 'U', 'W', 'Z'].freeze
 
-    belongs_to :order, class_name: 'Spree::Order', touch: true, inverse_of: :payments
-    belongs_to :source, polymorphic: true
-    belongs_to :payment_method, -> { with_deleted }, class_name: 'Spree::PaymentMethod', inverse_of: :payments
+    belongs_to :order, class_name: 'Spree::Order', touch: true, inverse_of: :payments, optional: true
+    belongs_to :source, polymorphic: true, optional: true
+    belongs_to :payment_method, -> { with_deleted }, class_name: 'Spree::PaymentMethod', inverse_of: :payments, optional: true
 
     has_many :offsets, -> { offset_payment }, class_name: "Spree::Payment", foreign_key: :source_id
     has_many :log_entries, as: :source
@@ -40,11 +42,12 @@ module Spree
 
     validates :amount, numericality: true
     validates :source, presence: true, if: :source_required?
+    validates :payment_method, presence: true
 
     default_scope -> { order(:created_at) }
 
     scope :from_credit_card, -> { where(source_type: 'Spree::CreditCard') }
-    scope :with_state, ->(s) { where(state: s.to_s) }
+    scope :with_state, ->(state) { where(state: state.to_s) }
     # "offset" is reserved by activerecord
     scope :offset_payment, -> { where("source_type = 'Spree::Payment' AND amount < 0 AND state = 'completed'") }
 
@@ -55,49 +58,12 @@ module Spree
     scope :failed, -> { with_state('failed') }
 
     scope :risky, -> { where("avs_response IN (?) OR (cvv_response_code IS NOT NULL and cvv_response_code != 'M') OR state = 'failed'", RISKY_AVS_CODES) }
-    scope :valid, -> { where.not(state: %w(failed invalid)) }
+    scope :valid, -> { where.not(state: %w(failed invalid void)) }
 
     scope :store_credits, -> { where(source_type: Spree::StoreCredit.to_s) }
     scope :not_store_credits, -> { where(arel_table[:source_type].not_eq(Spree::StoreCredit.to_s).or(arel_table[:source_type].eq(nil))) }
 
-    # order state machine (see http://github.com/pluginaweek/state_machine/tree/master for details)
-    state_machine initial: :checkout do
-      # With card payments, happens before purchase or authorization happens
-      #
-      # Setting it after creating a profile and authorizing a full amount will
-      # prevent the payment from being authorized again once Order transitions
-      # to complete
-      event :started_processing do
-        transition from: [:checkout, :pending, :completed, :processing], to: :processing
-      end
-      # When processing during checkout fails
-      event :failure do
-        transition from: [:pending, :processing], to: :failed
-      end
-      # With card payments this represents authorizing the payment
-      event :pend do
-        transition from: [:checkout, :processing], to: :pending
-      end
-      # With card payments this represents completing a purchase or capture transaction
-      event :complete do
-        transition from: [:processing, :pending, :checkout], to: :completed
-      end
-      event :void do
-        transition from: [:pending, :processing, :completed, :checkout], to: :void
-      end
-      # when the card brand isnt supported
-      event :invalidate do
-        transition from: [:checkout], to: :invalid
-      end
-
-      after_transition do |payment, transition|
-        payment.state_changes.create!(
-          previous_state: transition.from,
-          next_state:     transition.to,
-          name:           'payment'
-        )
-      end
-    end
+    include ::Spree::Config.state_machines.payment
 
     # @return [String] this payment's response code
     def transaction_id
@@ -144,6 +110,11 @@ module Spree
     # @return [Boolean] true when this payment can be credited
     def can_credit?
       credit_allowed > 0
+    end
+
+    # @return [Boolean] true when this payment has been fully refunded
+    def fully_refunded?
+      refunds.map(&:amount).sum == amount
     end
 
     # @return [Array<String>] the actions available on this payment
@@ -199,7 +170,7 @@ module Spree
       if source && !source.valid?
         source.errors.each do |field, error|
           field_name = I18n.t("activerecord.attributes.#{source.class.to_s.underscore}.#{field}")
-          errors.add(Spree.t(source.class.to_s.demodulize.underscore), "#{field_name} #{error}")
+          errors.add(I18n.t(source.class.to_s.demodulize.underscore, scope: 'spree'), "#{field_name} #{error}")
         end
       end
       if errors.any?
@@ -224,23 +195,21 @@ module Spree
       return if source.imported
 
       payment_method.create_profile(self)
-    rescue ActiveMerchant::ConnectionError => e
-      gateway_error e
+    rescue ActiveMerchant::ConnectionError => error
+      gateway_error error
     end
 
     def invalidate_old_payments
       if !store_credit? && !['invalid', 'failed'].include?(state)
-        order.payments.select do |payment|
-          payment.state == 'checkout' &&
-            payment.payment_method_id == payment_method.try!(:id) &&
-            payment.id != id
-        end.each(&:invalidate!)
+        order.payments.select { |payment|
+          payment.state == 'checkout' && !payment.store_credit? && payment.id != id
+        }.each(&:invalidate!)
       end
     end
 
     def update_order
       if order.completed? || completed? || void?
-        order.update!
+        order.recalculate
       end
     end
 
@@ -267,7 +236,7 @@ module Spree
       # type of payment getting refunded, hence the additional check
       # if the source is a store credit.
       if store_credit? && source.is_a?(Spree::StoreCredit)
-        source.update_attributes!({
+        source.update!({
           action: Spree::StoreCredit::ELIGIBLE_ACTION,
           action_amount: amount,
           action_authorization_code: response_code

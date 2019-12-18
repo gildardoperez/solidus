@@ -1,9 +1,11 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 class DummyShippingCalculator < Spree::ShippingCalculator
 end
 
-describe Spree::ShippingMethod, type: :model do
+RSpec.describe Spree::ShippingMethod, type: :model do
   # Regression test for https://github.com/spree/spree/issues/4492
   context "#shipments" do
     let!(:shipping_method) { create(:shipping_method) }
@@ -22,17 +24,21 @@ describe Spree::ShippingMethod, type: :model do
     before { subject.valid? }
 
     it "validates presence of name" do
-      expect(subject.error_on(:name).size).to eq(1)
+      expect(subject.errors[:name].size).to eq(1)
     end
 
     context "shipping category" do
       it "validates presence of at least one" do
-        expect(subject.error_on(:base).size).to eq(1)
+        expect(subject.errors[:base].size).to eq(1)
       end
 
       context "one associated" do
-        before { subject.shipping_categories.push create(:shipping_category) }
-        it { expect(subject.error_on(:base).size).to eq(0) }
+        before do
+          subject.shipping_categories.push create(:shipping_category)
+          subject.valid?
+        end
+
+        it { expect(subject.errors[:base].size).to eq(0) }
       end
     end
   end
@@ -59,7 +65,7 @@ describe Spree::ShippingMethod, type: :model do
   context "soft deletion" do
     let(:shipping_method) { create(:shipping_method) }
     it "soft-deletes when destroy is called" do
-      shipping_method.destroy
+      shipping_method.discard
       expect(shipping_method.deleted_at).not_to be_blank
     end
   end
@@ -249,6 +255,38 @@ describe Spree::ShippingMethod, type: :model do
     context "when available_to_users is false" do
       let(:available_to_users) { false }
       it { should == 'back_end' }
+    end
+  end
+
+  describe '.available_to_store' do
+    let(:store) { create(:store) }
+    let(:first_shipping_method) { create(:shipping_method, stores: [store]) }
+    let(:second_shipping_method) { create(:shipping_method, stores: [store]) }
+
+    subject { [first_shipping_method, second_shipping_method] }
+
+    it 'raises an exception if no store is passed as argument' do
+      expect {
+        described_class.available_to_store(nil)
+      }.to raise_exception(ArgumentError, 'You must provide a store')
+    end
+
+    context 'when the store has no shipping methods associated' do
+      before { store.shipping_methods = [] }
+
+      it 'returns all shipping methods' do
+        expect(store.shipping_methods).to eq([])
+        expect(described_class.available_to_store(store)).to eq(subject)
+      end
+    end
+
+    context 'when the store has shipping methods associated' do
+      before { create(:shipping_method) }
+
+      it 'returns the associated records' do
+        expect(store.shipping_methods).to eq(subject)
+        expect(described_class.available_to_store(store)).to eq(subject)
+      end
     end
   end
 end

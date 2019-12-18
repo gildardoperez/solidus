@@ -7,7 +7,7 @@ html {
 
 body {
   padding: 0;
-  font-weight: 400;
+  font-weight: $font-weight-normal;
   text-rendering: optimizeLegibility;
 }
 
@@ -17,15 +17,20 @@ hr {
   border-left: none;
 }
 
+strong,
+b {
+  font-weight: $font-weight-bold;
+}
+
 // Headings
 //--------------------------------------------------------------
 
-h1 { line-height: $font-size-h1 + 6 }
-h2 { line-height: $font-size-h1 + 4 }
-h3 { line-height: $font-size-h1 + 2 }
-h4 { line-height: $font-size-h1 }
-h5 { line-height: $font-size-h1 }
-h6 { line-height: $font-size-h1 }
+h1 { line-height: $h1-font-size + 6 }
+h2 { line-height: $h1-font-size + 4 }
+h3 { line-height: $h1-font-size + 2 }
+h4 { line-height: $h1-font-size }
+h5 { line-height: $h1-font-size }
+h6 { line-height: $h1-font-size }
 
 
 // Lists
@@ -68,7 +73,6 @@ dl {
     width: 40%;
     font-weight: $font-weight-bold;
     padding-left: 0;
-    font-size: 85%;
     clear: left;
   }
 
@@ -93,10 +97,13 @@ dl {
 
 .uppercase     { text-transform: uppercase }
 
-.green  { color: $color-2 }
-.blue   { color: $color-3 }
-.red    { color: $color-5 }
-.yellow { color: $color-6 }
+.green  { color: $color-green }
+.blue   { color: $color-primary }
+.red    { color: $color-red }
+.yellow { color: $color-yellow }
+
+.negative { color: $red }
+input[type="number"].negative { color: $red } // needed to override blue style that is more specific than '.negative'
 
 .no-objects-found {
   text-align: center;

@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::CreditCard, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::CreditCard, type: :model do
   let(:valid_credit_card_attributes) do
     {
       number: '4111111111111111',
@@ -31,8 +33,7 @@ describe Spree::CreditCard, type: :model do
       purchase: @success_response,
       capture: @success_response,
       void: @success_response,
-      credit: @success_response
-    )
+      credit: @success_response)
 
     allow(@payment).to receive_messages payment_method: @payment_gateway
   end
@@ -52,7 +53,7 @@ describe Spree::CreditCard, type: :model do
 
     it "validates name presence" do
       credit_card.valid?
-      expect(credit_card.error_on(:name).size).to eq(1)
+      expect(credit_card.errors[:name].size).to eq(1)
     end
 
     it "should only validate on create" do
@@ -108,10 +109,10 @@ describe Spree::CreditCard, type: :model do
     end
 
     it "should save and update addresses through nested attributes" do
-      persisted_card.update_attributes({ address_attributes: valid_address_attributes })
+      persisted_card.update({ address_attributes: valid_address_attributes })
       persisted_card.save!
       updated_attributes = { id: persisted_card.address.id, address1: "123 Main St." }
-      persisted_card.update_attributes({ address_attributes: updated_attributes })
+      persisted_card.update({ address_attributes: updated_attributes })
       expect(persisted_card.address.address1).to eq "123 Main St."
     end
   end

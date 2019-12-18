@@ -1,5 +1,6 @@
 //= require spree/backend/routes
 //= require spree/backend/collections/line_items
+//= require spree/backend/collections/shipments
 //= require spree/backend/models/address
 
 Spree.Models.Order = Backbone.Model.extend({
@@ -8,7 +9,7 @@ Spree.Models.Order = Backbone.Model.extend({
 
   relations: {
     "line_items": Spree.Collections.LineItems,
-    "shipments": Backbone.Collection,
+    "shipments": Spree.Collections.Shipments,
     "bill_address": Spree.Models.Address,
     "ship_address": Spree.Models.Address
   },
@@ -16,6 +17,15 @@ Spree.Models.Order = Backbone.Model.extend({
   advance: function(opts) {
     var options = {
       url: Spree.routes.checkouts_api + "/" + this.id + "/advance",
+      type: 'PUT',
+    };
+    _.extend(options, opts);
+    return this.fetch(options)
+  },
+
+  empty: function (opts) {
+    var options = {
+      url: Spree.routes.orders_api + "/" + this.id + "/empty",
       type: 'PUT',
     };
     _.extend(options, opts);

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Stock
     class Differentiator
@@ -12,7 +14,7 @@ module Spree
       end
 
       def missing?
-        missing.values.any? { |v| v > 0 }
+        missing.values.any? { |value| value > 0 }
       end
 
       private

@@ -1,18 +1,20 @@
+# frozen_string_literal: true
+
 require 'rails/all'
-require 'active_merchant'
 require 'acts_as_list'
 require 'awesome_nested_set'
 require 'cancan'
 require 'friendly_id'
-require 'kaminari'
+require 'kaminari/activerecord'
 require 'mail'
 require 'monetize'
 require 'paperclip'
 require 'paranoia'
-require 'premailer/rails'
 require 'ransack'
 require 'state_machines-activerecord'
-require 'responders'
+
+require 'spree/deprecation'
+require 'spree/paranoia_deprecations'
 
 # This is required because ActiveModel::Validations#invalid? conflicts with the
 # invalid state of a Payment. In the future this should be removed.
@@ -44,22 +46,36 @@ module Spree
   end
 
   module Core
-    autoload :ProductFilters, "spree/core/product_filters"
-
     class GatewayError < RuntimeError; end
-    class DestroyWithOrdersError < StandardError; end
+
+    include ActiveSupport::Deprecation::DeprecatedConstantAccessor
+    deprecate_constant 'DestroyWithOrdersError', ActiveRecord::DeleteRestrictionError, deprecator: Spree::Deprecation
   end
+end
+
+if Gem::Version.new(Rails.version) < Gem::Version.new('5.2')
+  warn <<~HEREDOC
+    Rails 5.1 (EOL) is deprecated and will not be supported anymore from the next Solidus version.
+    Please, upgrade to a more recent Rails version.
+
+    Read more on upgrading from Rails 5.1 to Rails 5.2 here:
+    https://guides.rubyonrails.org/upgrading_ruby_on_rails.html#upgrading-from-rails-5-1-to-rails-5-2
+
+  HEREDOC
 end
 
 require 'spree/core/version'
 
+require 'spree/core/active_merchant_dependencies'
 require 'spree/core/class_constantizer'
 require 'spree/core/environment_extension'
 require 'spree/core/environment/calculators'
+require 'spree/core/environment/promotions'
 require 'spree/core/environment'
 require 'spree/promo/environment'
 require 'spree/migrations'
 require 'spree/migration_helpers'
+require 'spree/event'
 require 'spree/core/engine'
 
 require 'spree/i18n'
@@ -76,13 +92,15 @@ require 'spree/core/controller_helpers/common'
 require 'spree/core/controller_helpers/order'
 require 'spree/core/controller_helpers/payment_parameters'
 require 'spree/core/controller_helpers/pricing'
-require 'spree/core/controller_helpers/respond_with'
 require 'spree/core/controller_helpers/search'
 require 'spree/core/controller_helpers/store'
 require 'spree/core/controller_helpers/strong_parameters'
 require 'spree/core/role_configuration'
+require 'spree/core/state_machines'
 require 'spree/core/stock_configuration'
+require 'spree/core/validators/email'
 require 'spree/permission_sets'
-require 'spree/deprecation'
 
-require 'spree/core/price_migrator'
+require 'spree/preferences/store'
+require 'spree/preferences/static_model_preferences'
+require 'spree/preferences/scoped_store'

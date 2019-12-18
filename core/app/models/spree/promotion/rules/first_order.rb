@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 module Spree
-  class Promotion
+  class Promotion < Spree::Base
     module Rules
       class FirstOrder < PromotionRule
         attr_reader :user, :email
@@ -14,10 +16,8 @@ module Spree
 
           if user || email
             if !completed_orders.blank? && completed_orders.first != order
-              eligibility_errors.add(:base, eligibility_error_message(:not_first_order))
+              eligibility_errors.add(:base, eligibility_error_message(:not_first_order), error_code: :not_first_order)
             end
-          else
-            eligibility_errors.add(:base, eligibility_error_message(:no_user_or_email_specified))
           end
 
           eligibility_errors.empty?

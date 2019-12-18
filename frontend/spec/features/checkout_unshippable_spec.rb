@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe "checkout with unshippable items", type: :feature, inaccessible: true do
   let!(:stock_location) { create(:stock_location) }
-  let(:order) { OrderWalkthrough.up_to(:address) }
+  let(:order) { Spree::TestingSupport::OrderWalkthrough.up_to(:address) }
 
   before do
     create(:line_item, order: order)
@@ -15,7 +17,7 @@ describe "checkout with unshippable items", type: :feature, inaccessible: true d
 
     user = create(:user)
     order.user = user
-    order.update!
+    order.recalculate
 
     allow_any_instance_of(Spree::CheckoutController).to receive_messages(current_order: order)
     allow_any_instance_of(Spree::CheckoutController).to receive_messages(try_spree_current_user: user)

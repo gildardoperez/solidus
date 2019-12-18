@@ -1,4 +1,5 @@
-require 'ffaker'
+# frozen_string_literal: true
+
 require 'pathname'
 require 'spree/sample'
 

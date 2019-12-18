@@ -23,8 +23,8 @@ Spree.pathFor = function(path) {
 };
 
 Spree.url = function(uri, query) {
-  if (Spree.env === 'development' || Spree.env === 'test') {
-    console.warn('Spree.url is deprecated, please use Spree.ajax for your request instead.');
+  if (console && console.warn) {
+    console.warn('Spree.url is deprecated, and will be removed from a future Solidus version.');
   }
   if (uri.path === undefined) {
     uri = new Uri(uri);
@@ -45,7 +45,7 @@ Spree.ajax = function(url, options) {
   options = options || {};
   options = $.extend(options, {
     headers: {
-      "X-Spree-Token": Spree.api_key
+      'Authorization': 'Bearer ' + Spree.api_key
     }
   });
   return $.ajax(url, options);
@@ -54,7 +54,7 @@ Spree.ajax = function(url, options) {
 Spree.routes = {
   states_search: Spree.pathFor('api/states'),
   apply_coupon_code: function(order_id) {
-    return Spree.pathFor("api/orders/" + order_id + "/apply_coupon_code");
+    return Spree.pathFor("api/orders/" + order_id + "/coupon_codes");
   }
 };
 

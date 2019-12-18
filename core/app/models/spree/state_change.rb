@@ -1,7 +1,9 @@
+# frozen_string_literal: true
+
 module Spree
   class StateChange < Spree::Base
-    belongs_to :user
-    belongs_to :stateful, polymorphic: true
+    belongs_to :user, optional: true
+    belongs_to :stateful, polymorphic: true, optional: true
     before_create :assign_user
 
     def <=>(other)

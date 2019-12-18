@@ -1,9 +1,9 @@
-# encoding: utf-8
+# frozen_string_literal: true
 
-require 'spec_helper'
+require 'rails_helper'
 
 module Spree
-  describe ProductsHelper, type: :helper do
+  RSpec.describe ProductsHelper, type: :helper do
     include ProductsHelper
 
     let(:product) { create(:product, price: product_price) }
@@ -15,7 +15,9 @@ module Spree
     end
 
     before do
-      allow(helper).to receive(:current_pricing_options) { pricing_options }
+      without_partial_double_verification do
+        allow(helper).to receive(:current_pricing_options) { pricing_options }
+      end
     end
 
     context "#variant_price_diff" do
@@ -31,7 +33,7 @@ module Spree
         context "when variant is more than master" do
           let(:variant_price) { 15 }
 
-          it { is_expected.to eq("(Add: $5.00)") }
+          it { is_expected.to eq("(Add: <span class=\"money-currency-symbol\">$</span><span class=\"money-whole\">5</span><span class=\"money-decimal-mark\">.</span><span class=\"money-decimal\">00</span>)") }
           # Regression test for https://github.com/spree/spree/issues/2737
           it { is_expected.to be_html_safe }
         end
@@ -39,7 +41,7 @@ module Spree
         context "when variant is less than master" do
           let(:product_price) { 15 }
 
-          it { is_expected.to eq("(Subtract: $5.00)") }
+          it { is_expected.to eq("(Subtract: <span class=\"money-currency-symbol\">$</span><span class=\"money-whole\">5</span><span class=\"money-decimal-mark\">.</span><span class=\"money-decimal\">00</span>)") }
         end
       end
 
@@ -56,13 +58,13 @@ module Spree
         context "when variant is more than master" do
           let(:variant_price) { 150 }
 
-          it { is_expected.to eq("(Add: &#x00A5;50)") }
+          it { is_expected.to eq("(Add: <span class=\"money-currency-symbol\">&#x00A5;</span><span class=\"money-whole\">50</span>)") }
         end
 
         context "when variant is less than master" do
           let(:product_price) { 150 }
 
-          it { is_expected.to eq("(Subtract: &#x00A5;50)") }
+          it { is_expected.to eq("(Subtract: <span class=\"money-currency-symbol\">&#x00A5;</span><span class=\"money-whole\">50</span>)") }
         end
       end
     end
@@ -73,14 +75,14 @@ module Spree
       let(:variant_price) { 15 }
 
       before do
-        Spree::Config[:show_variant_full_price] = true
+        stub_spree_preferences(show_variant_full_price: true)
         variant
       end
 
       context "when currency is default" do
         it "should return the variant price if the price is different than master" do
-          expect(helper.variant_price(variant)).to eq("$15.00")
-          expect(helper.variant_price(variant_2)).to eq("$20.00")
+          expect(helper.variant_price(variant)).to eq("<span class=\"money-currency-symbol\">$</span><span class=\"money-whole\">15</span><span class=\"money-decimal-mark\">.</span><span class=\"money-decimal\">00</span>")
+          expect(helper.variant_price(variant_2)).to eq("<span class=\"money-currency-symbol\">$</span><span class=\"money-whole\">20</span><span class=\"money-decimal-mark\">.</span><span class=\"money-decimal\">00</span>")
         end
       end
 
@@ -95,7 +97,7 @@ module Spree
         end
 
         it "should return the variant price if the price is different than master" do
-          expect(helper.variant_price(variant)).to eq("&#x00A5;150")
+          expect(helper.variant_price(variant)).to eq("<span class=\"money-currency-symbol\">&#x00A5;</span><span class=\"money-whole\">150</span>")
         end
       end
 
@@ -146,7 +148,7 @@ THIS IS THE BEST PRODUCT EVER!
 
         product.description = description
 
-        Spree::Config[:show_raw_product_description] = true
+        stub_spree_preferences(show_raw_product_description: true)
         description = product_description(product)
         expect(description).to eq(description)
       end
@@ -156,7 +158,7 @@ THIS IS THE BEST PRODUCT EVER!
       subject { line_item_description_text description }
       context 'variant has a blank description' do
         let(:description) { nil }
-        it { is_expected.to eq(Spree.t(:product_has_no_description)) }
+        it { is_expected.to eq(I18n.t('spree.product_has_no_description')) }
       end
       context 'variant has a description' do
         let(:description) { 'test_desc' }

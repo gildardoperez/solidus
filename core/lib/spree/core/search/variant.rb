@@ -1,3 +1,7 @@
+# frozen_string_literal: true
+
+require 'active_support/core_ext/class/attribute'
+
 module Spree
   module Core
     module Search
@@ -45,7 +49,7 @@ module Spree
         # Subclasses may override this to allow conditional filtering, etc.
         #
         # @api public
-        # @param word [String] One of the search words provided by the user.
+        # @param _word [String] One of the search words provided by the user.
         #   e.g. a SKU
         # @return [Array<Symbol>] the list of search terms to use for this word
         def search_terms(_word)
@@ -53,7 +57,7 @@ module Spree
         end
 
         def search_term_params(word)
-          terms = Hash[search_terms(word).map { |t| [t, word] }]
+          terms = Hash[search_terms(word).map { |term| [term, word] }]
           terms.merge(m: 'or')
         end
       end

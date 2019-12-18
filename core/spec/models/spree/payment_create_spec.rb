@@ -1,4 +1,6 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
   RSpec.describe PaymentCreate do
@@ -62,8 +64,8 @@ module Spree
           expect(new_payment).not_to be_persisted
           expect(new_payment.source).not_to be_persisted
           expect(new_payment.source).not_to be_valid
-          expect(new_payment.source.error_on(:number)).to be_present
-          expect(new_payment.source.error_on(:verification_value).size).to be_present
+          expect(new_payment.source.errors[:number]).to be_present
+          expect(new_payment.source.errors[:verification_value].size).to be_present
         end
       end
     end
@@ -120,7 +122,7 @@ module Spree
       end
 
       context 'the order has no user' do
-        before { order.update_attributes!(user_id: nil) }
+        before { order.update!(user_id: nil) }
         it 'errors' do
           expect { new_payment }.to raise_error(ActiveRecord::RecordNotFound)
         end
@@ -128,7 +130,7 @@ module Spree
 
       context 'the order and the credit card have no user' do
         before do
-          order.update_attributes!(user_id: nil)
+          order.update!(user_id: nil)
           credit_card.update!(user_id: nil)
         end
         it 'errors' do
@@ -154,12 +156,10 @@ module Spree
       context "unpermitted" do
         let(:attributes) { ActionController::Parameters.new(valid_attributes) }
 
-        it "ignores all attributes" do
-          expect(new_payment).to have_attributes(
-            amount: 0,
-            payment_method: nil,
-            source: nil
-          )
+        it "raises an exception" do
+          expect {
+            new_payment
+          }.to raise_exception(ActionController::UnfilteredParameters)
         end
       end
 

@@ -1,10 +1,14 @@
+# frozen_string_literal: true
+
 require 'rails/generators'
-require 'highline/import'
 require 'bundler'
 require 'bundler/cli'
 
 module Spree
+  # @private
   class InstallGenerator < Rails::Generators::Base
+    CORE_MOUNT_ROUTE = "mount Spree::Core::Engine"
+
     class_option :migrate, type: :boolean, default: true, banner: 'Run Solidus migrations'
     class_option :seed, type: :boolean, default: true, banner: 'load seed data (migrations must be run)'
     class_option :sample, type: :boolean, default: true, banner: 'load sample data (migrations must be run)'
@@ -19,7 +23,7 @@ module Spree
       paths = superclass.source_paths
       paths << File.expand_path('../templates', "../../#{__FILE__}")
       paths << File.expand_path('../templates', "../#{__FILE__}")
-      paths << File.expand_path('../templates', __FILE__)
+      paths << File.expand_path('templates', __dir__)
       paths.flatten
     end
 
@@ -35,25 +39,28 @@ module Spree
     end
 
     def add_files
-      template 'config/initializers/solidus.rb', 'config/initializers/solidus.rb'
+      template 'config/initializers/spree.rb.tt', 'config/initializers/spree.rb'
     end
 
     def additional_tweaks
       return unless File.exist? 'public/robots.txt'
-      append_file "public/robots.txt", <<-ROBOTS
-User-agent: *
-Disallow: /checkout
-Disallow: /cart
-Disallow: /orders
-Disallow: /user
-Disallow: /account
-Disallow: /api
-Disallow: /password
+      append_file "public/robots.txt", <<-ROBOTS.strip_heredoc
+        User-agent: *
+        Disallow: /checkout
+        Disallow: /cart
+        Disallow: /orders
+        Disallow: /user
+        Disallow: /account
+        Disallow: /api
+        Disallow: /password
       ROBOTS
     end
 
     def setup_assets
       @lib_name = 'spree'
+
+      empty_directory 'app/assets/images'
+
       %w{javascripts stylesheets images}.each do |path|
         empty_directory "vendor/assets/#{path}/spree/frontend" if defined? Spree::Frontend || Rails.env.test?
         empty_directory "vendor/assets/#{path}/spree/backend" if defined? Spree::Backend || Rails.env.test?
@@ -75,35 +82,40 @@ Disallow: /password
     end
 
     def configure_application
-      application <<-APP
-
-    config.to_prepare do
-      # Load application's model / class decorators
-      Dir.glob(File.join(File.dirname(__FILE__), "../app/**/*_decorator*.rb")) do |c|
-        Rails.configuration.cache_classes ? require(c) : load(c)
-      end
-
-      # Load application's view overrides
-      Dir.glob(File.join(File.dirname(__FILE__), "../app/overrides/*.rb")) do |c|
-        Rails.configuration.cache_classes ? require(c) : load(c)
+      application <<-RUBY
+    # Load application's model / class decorators
+    initializer 'spree.decorators' do |app|
+      config.to_prepare do
+        Dir.glob(Rails.root.join('app/**/*_decorator*.rb')) do |path|
+          require_dependency(path)
+        end
       end
     end
-      APP
+
+    # Load application's view overrides
+    initializer 'spree.overrides' do |app|
+      config.to_prepare do
+        Dir.glob(Rails.root.join('app/overrides/*.rb')) do |path|
+          require_dependency(path)
+        end
+      end
+    end
+      RUBY
 
       if !options[:enforce_available_locales].nil?
-        application <<-APP
+        application <<-RUBY
     # Prevent this deprecation message: https://github.com/svenfuchs/i18n/commit/3b6e56e
     I18n.enforce_available_locales = #{options[:enforce_available_locales]}
-        APP
+        RUBY
       end
     end
 
     def include_seed_data
-      append_file "db/seeds.rb", <<-SEEDS
-\n
-Spree::Core::Engine.load_seed if defined?(Spree::Core)
-Spree::Auth::Engine.load_seed if defined?(Spree::Auth)
-      SEEDS
+      append_file "db/seeds.rb", <<-RUBY.strip_heredoc
+
+        Spree::Core::Engine.load_seed if defined?(Spree::Core)
+        Spree::Auth::Engine.load_seed if defined?(Spree::Auth)
+      RUBY
     end
 
     def install_migrations
@@ -150,23 +162,26 @@ Spree::Auth::Engine.load_seed if defined?(Spree::Auth)
     end
 
     def install_routes
-      insert_into_file File.join('config', 'routes.rb'), after: "Rails.application.routes.draw do\n" do
-        <<-ROUTES
+      routes_file_path = File.join('config', 'routes.rb')
+      unless File.read(routes_file_path).include? CORE_MOUNT_ROUTE
+        insert_into_file routes_file_path, after: "Rails.application.routes.draw do\n" do
+          <<-RUBY
   # This line mounts Solidus's routes at the root of your application.
   # This means, any requests to URLs such as /products, will go to Spree::ProductsController.
   # If you would like to change where this engine is mounted, simply change the :at option to something different.
   #
   # We ask that you don't use the :as option here, as Solidus relies on it being the default of "spree"
-  mount Spree::Core::Engine, at: '/'
+  #{CORE_MOUNT_ROUTE}, at: '/'
 
-        ROUTES
+          RUBY
+        end
       end
 
       unless options[:quiet]
         puts "*" * 50
         puts "We added the following line to your application's config/routes.rb file:"
         puts " "
-        puts "    mount Spree::Core::Engine, at: '/'"
+        puts "    #{CORE_MOUNT_ROUTE}, at: '/'"
       end
     end
 

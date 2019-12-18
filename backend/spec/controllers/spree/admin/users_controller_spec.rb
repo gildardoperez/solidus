@@ -1,5 +1,6 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
-require 'spree/testing_support/bar_ability'
 
 describe Spree::Admin::UsersController, type: :controller do
   let(:user) { create(:user) }
@@ -37,7 +38,7 @@ describe Spree::Admin::UsersController, type: :controller do
 
       it 'can visit index' do
         post :index
-        expect(response).to be_success
+        expect(response).to be_successful
       end
 
       it "allows admins to update a user's API key" do
@@ -198,6 +199,29 @@ describe Spree::Admin::UsersController, type: :controller do
         expect {
           put :update, params: { id: user.id, user: { email: "bob@example.com" } }
         }.not_to change { user.reload.email }
+      end
+    end
+
+    context "allowed to update passwords" do
+      it "can change password of a user" do
+        expect {
+          put :update, params: { id: user.id, user: { password: "diff123", password_confirmation: "diff123" } }
+        }.to_not raise_error
+      end
+    end
+
+    context "not allowed to update passwords" do
+      stub_authorization! do |_user|
+        can [:admin, :update], Spree.user_class
+      end
+
+      it "cannot change password of a user" do
+        allow(ActionController::Parameters).
+          to receive(:action_on_unpermitted_parameters).and_return(:raise)
+
+        expect {
+          put :update, params: { id: user.id, user: { password: "diff123", password_confirmation: "diff123" } }
+        }.to raise_error(ActionController::UnpermittedParameters)
       end
     end
 

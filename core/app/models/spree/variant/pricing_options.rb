@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 module Spree
-  class Variant
+  class Variant < Spree::Base
     # Instances of this class represent the set of circumstances that influence how expensive a
     # variant is. For this particular pricing options class, country_iso and currency influence
     # the price of a variant.
@@ -45,6 +47,16 @@ module Spree
       #
       def self.from_price(price)
         new(currency: price.currency, country_iso: price.country_iso)
+      end
+
+      # This creates the correct pricing options for a price, so the store owners can easily customize how to
+      # find the pricing based on the view context, having available current_store, current_spree_user, request.host_name, etc.
+      # @return [Spree::Variant::PricingOptions] pricing options for pricing a line item
+      def self.from_context(context)
+        new(
+          currency: context.current_store.try!(:default_currency).presence || Spree::Config[:currency],
+          country_iso: context.current_store.try!(:cart_tax_country_iso).presence
+        )
       end
 
       # @return [Hash] The hash of exact desired attributes

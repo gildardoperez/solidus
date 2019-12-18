@@ -1,9 +1,15 @@
+# frozen_string_literal: true
+
 module Spree
   module Admin
     class PromotionsController < ResourceController
       before_action :load_data
 
       helper 'spree/promotion_rules'
+
+      def show
+        redirect_to action: :edit
+      end
 
       def create
         @promotion = Spree::Promotion.new(permitted_resource_params)
@@ -15,10 +21,10 @@ module Spree
 
         if @promotion.save
           @promotion_code_batch.process if @promotion_code_batch
-          flash[:success] = Spree.t(:promotion_successfully_created)
+          flash[:success] = t('spree.promotion_successfully_created')
           redirect_to location_after_save
         else
-          flash[:error] = @promotion.errors.full_messages.join(", ")
+          flash[:error] = @promotion.errors.full_messages.to_sentence
           render action: 'new'
         end
       end
@@ -35,7 +41,7 @@ module Spree
       end
 
       def collection
-        return @collection if defined?(@collection)
+        return @collection if @collection
         params[:q] ||= HashWithIndifferentAccess.new
         params[:q][:s] ||= 'id desc'
 

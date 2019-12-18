@@ -1,12 +1,14 @@
+# frozen_string_literal: true
+
 require 'spree/testing_support/factories/promotion_code_factory'
 require 'spree/testing_support/factories/variant_factory'
 
-FactoryGirl.define do
-  factory :promotion, class: Spree::Promotion do
-    name 'Promo'
+FactoryBot.define do
+  factory :promotion, class: 'Spree::Promotion' do
+    name { 'Promo' }
 
     transient do
-      code nil
+      code { nil }
     end
     before(:create) do |promotion, evaluator|
       if evaluator.code
@@ -16,7 +18,7 @@ FactoryGirl.define do
 
     trait :with_line_item_adjustment do
       transient do
-        adjustment_rate 10
+        adjustment_rate { 10 }
       end
 
       after(:create) do |promotion, evaluator|
@@ -25,11 +27,18 @@ FactoryGirl.define do
         Spree::Promotion::Actions::CreateItemAdjustments.create!(calculator: calculator, promotion: promotion)
       end
     end
+
     factory :promotion_with_item_adjustment, traits: [:with_line_item_adjustment]
+
+    trait :with_free_shipping do
+      after(:create) do |promotion|
+        Spree::Promotion::Actions::FreeShipping.create!(promotion: promotion)
+      end
+    end
 
     trait :with_order_adjustment do
       transient do
-        weighted_order_adjustment_amount 10
+        weighted_order_adjustment_amount { 10 }
       end
 
       after(:create) do |promotion, evaluator|
@@ -44,7 +53,7 @@ FactoryGirl.define do
 
     trait :with_item_total_rule do
       transient do
-        item_total_threshold_amount 10
+        item_total_threshold_amount { 10 }
       end
 
       after(:create) do |promotion, evaluator|
@@ -58,5 +67,15 @@ FactoryGirl.define do
       end
     end
     factory :promotion_with_item_total_rule, traits: [:with_item_total_rule]
+    trait :with_first_order_rule do
+      after(:create) do |promotion, _evaluator|
+        rule = Spree::Promotion::Rules::FirstOrder.create!(
+          promotion: promotion,
+        )
+        promotion.rules << rule
+        promotion.save!
+      end
+    end
+    factory :promotion_with_first_order_rule, traits: [:with_first_order_rule]
   end
 end

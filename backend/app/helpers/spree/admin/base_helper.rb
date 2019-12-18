@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Admin
     module BaseHelper
@@ -28,47 +30,39 @@ module Spree
         end
       end
 
-      def datepicker_field_value(date)
-        unless date.blank?
-          l(date, format: Spree.t('date_picker.format', default: '%Y/%m/%d'))
+      def datepicker_field_value(date, with_time: false)
+        return if date.blank?
+
+        format = if with_time
+          t('spree.date_picker.format_with_time', default: '%Y/%m/%d %H:%M')
+        else
+          t('spree.date_picker.format', default: '%Y/%m/%d')
         end
+
+        l(date, format: format)
       end
 
+      # @deprecated Render `spree/admin/shared/preference_fields/\#{preference_type}' instead
       def preference_field_tag(name, value, options)
-        case options[:type]
-        when :integer
-          text_field_tag(name, value, preference_field_options(options))
-        when :boolean
-          hidden_field_tag(name, 0, id: "#{name}_hidden") +
-            check_box_tag(name, 1, value, preference_field_options(options))
-        when :string
-          text_field_tag(name, value, preference_field_options(options))
-        when :password
-          password_field_tag(name, value, preference_field_options(options))
-        when :text
-          text_area_tag(name, value, preference_field_options(options))
-        else
-          text_field_tag(name, value, preference_field_options(options))
-        end
+        type = options.delete(:type) || :text
+        render "spree/admin/shared/preference_fields/#{type}",
+          name: name, value: value, html_options: options
       end
+      deprecate preference_field_tag:
+        "Render `spree/admin/shared/preference_fields/\#{preference_type}' instead",
+        deprecator: Spree::Deprecation
 
+      # @deprecated Render `spree/admin/shared/preference_fields/\#{preference_type}' instead
       def preference_field_for(form, field, options)
-        case options[:type]
-        when :integer
-          form.text_field(field, preference_field_options(options))
-        when :boolean
-          form.check_box(field, preference_field_options(options))
-        when :string
-          form.text_field(field, preference_field_options(options))
-        when :password
-          form.password_field(field, preference_field_options(options))
-        when :text
-          form.text_area(field, preference_field_options(options))
-        else
-          form.text_field(field, preference_field_options(options))
-        end
+        type = options.delete(:type) || :text
+        render "spree/admin/shared/preference_fields/#{type}",
+          form: form, attribute: field, html_options: options
       end
+      deprecate preference_field_for:
+        "Render `spree/admin/shared/preference_fields/\#{preference_type}' instead",
+        deprecator: Spree::Deprecation
 
+      # @deprecated Pass an `html_options' hash into preference field partial instead
       def preference_field_options(options)
         field_options = case options[:type]
                         when :integer
@@ -97,16 +91,29 @@ module Spree
           size: options[:size]
         })
       end
+      deprecate preference_field_options: "Pass an `html_options' hash into " \
+        "`render('spree/admin/shared/preference_fields/\#{preference_type}')` instead)",
+        deprecator: Spree::Deprecation
 
+      # @deprecated Please render each preference keys partial instead. Example:
+      # <% @object.preferences.keys.each do |key| %>
+      #   <%= render "spree/admin/shared/preference_fields/#{@object.preference_type(key)}",
+      #     form: f, attribute: "preferred_#{key}", label: t(key, scope: 'spree') %>
+      # <% end %>
       def preference_fields(object, form)
         return unless object.respond_to?(:preferences)
-        fields = object.preferences.keys.map { |key|
-          form.label("preferred_#{key}", Spree.t(key)) +
-            "<br />".html_safe +
-            preference_field_for(form, "preferred_#{key}", type: object.preference_type(key))
-        }
-        safe_join(fields, "<br />".html_safe)
+        capture do
+          object.preferences.keys.each do |key|
+            concat render("spree/admin/shared/preference_fields/#{object.preference_type(key)}",
+              form: form, attribute: "preferred_#{key}", label: t(key, scope: 'spree'))
+          end
+        end
       end
+      deprecate preference_fields: "Please render each preference key's partial instead. Example: \n" \
+        "<% @object.preferences.keys.each do |key| %>\n" \
+          "<%= render \"spree/admin/shared/preference_fields/\#{@object.preference_type(key)}\", \n" \
+             "form: f, attribute: \"preferred_\#{key}\", label: t(key, scope: 'spree') %>\n" \
+        "<% end %>", deprecator: Spree::Deprecation
 
       def link_to_add_fields(name, target, options = {})
         name = '' if options[:no_text]
@@ -115,12 +122,13 @@ module Spree
       end
 
       # renders hidden field and link to remove record using nested_attributes
-      def link_to_remove_fields(name, f, options = {})
+      def link_to_remove_fields(name, form, options = {})
         name = '' if options[:no_text]
         options[:class] = '' unless options[:class]
         options[:class] += 'no-text with-tip' if options[:no_text]
-        url = f.object.persisted? ? [:admin, f.object] : '#'
-        link_to_with_icon('trash', name, url, class: "spree_remove_fields #{options[:class]}", data: { action: 'remove' }, title: Spree.t('actions.remove')) + f.hidden_field(:_destroy)
+        url = form.object.persisted? ? [:admin, form.object] : '#'
+        link_to_with_icon('trash', name, url, class: "spree_remove_fields #{options[:class]}", data: { action: 'remove' }, title: t('spree.actions.remove')) +
+          form.hidden_field(:_destroy)
       end
 
       def spree_dom_id(record)
@@ -130,12 +138,6 @@ module Spree
       def admin_layout(layout = nil)
         @admin_layout = layout if layout
         @admin_layout
-      end
-
-      private
-
-      def attribute_name_for(field_name)
-        field_name.tr(' ', '_').downcase
       end
     end
   end

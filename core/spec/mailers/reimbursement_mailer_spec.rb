@@ -1,10 +1,8 @@
-require 'spec_helper'
-require 'email_spec'
+# frozen_string_literal: true
 
-describe Spree::ReimbursementMailer, type: :mailer do
-  include EmailSpec::Helpers
-  include EmailSpec::Matchers
+require 'rails_helper'
 
+RSpec.describe Spree::ReimbursementMailer, type: :mailer do
   let(:reimbursement) { create(:reimbursement) }
 
   it "accepts a reimbursement id as an alternative to a Reimbursement object" do
@@ -30,7 +28,7 @@ describe Spree::ReimbursementMailer, type: :mailer do
 
         specify do
           reimbursement_email = Spree::ReimbursementMailer.reimbursement_email(reimbursement)
-          expect(reimbursement_email).to have_body_text("Caro Cliente,")
+          expect(reimbursement_email.parts.first.body).to include("Caro Cliente,")
         end
       end
     end

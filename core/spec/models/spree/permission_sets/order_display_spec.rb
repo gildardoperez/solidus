@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::PermissionSets::OrderDisplay do
+require 'rails_helper'
+
+RSpec.describe Spree::PermissionSets::OrderDisplay do
   let(:ability) { DummyAbility.new }
 
   subject { ability }

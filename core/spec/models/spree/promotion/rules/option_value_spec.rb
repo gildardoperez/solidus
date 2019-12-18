@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Promotion::Rules::OptionValue do
+require 'rails_helper'
+
+RSpec.describe Spree::Promotion::Rules::OptionValue do
   let(:rule) { Spree::Promotion::Rules::OptionValue.new }
 
   describe "#preferred_eligible_values" do

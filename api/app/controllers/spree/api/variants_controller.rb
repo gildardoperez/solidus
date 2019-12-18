@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class VariantsController < Spree::Api::BaseController
@@ -15,7 +17,7 @@ module Spree
 
       def destroy
         @variant = scope.accessible_by(current_ability, :destroy).find(params[:id])
-        @variant.destroy
+        @variant.discard
         respond_with(@variant, status: 204)
       end
 
@@ -23,7 +25,7 @@ module Spree
       # we render on the view so we better update it any time a node is included
       # or removed from the views.
       def index
-        @variants = scope.includes({ option_values: :option_type }, :product, :default_price, :images, { stock_items: :stock_location })
+        @variants = scope.includes(include_list)
           .ransack(params[:q]).result
 
         @variants = paginate(@variants)
@@ -34,14 +36,14 @@ module Spree
       end
 
       def show
-        @variant = scope.includes({ option_values: :option_type }, :option_values, :product, :default_price, :images, { stock_items: :stock_location })
+        @variant = scope.includes(include_list)
           .find(params[:id])
         respond_with(@variant)
       end
 
       def update
         @variant = scope.accessible_by(current_ability, :update).find(params[:id])
-        if @variant.update_attributes(variant_params)
+        if @variant.update(variant_params)
           respond_with(@variant, status: 200, default_template: :show)
         else
           invalid_resource!(@product)
@@ -65,13 +67,23 @@ module Spree
           variants = variants.with_deleted
         end
 
+        in_stock_only = ActiveRecord::Type::Boolean.new.cast(params[:in_stock_only])
+        suppliable_only = ActiveRecord::Type::Boolean.new.cast(params[:suppliable_only])
         variants = variants.accessible_by(current_ability, :read)
-        variants = variants.in_stock if params[:in_stock_only] || cannot?(:view_out_of_stock, Spree::Variant)
+        if in_stock_only || cannot?(:view_out_of_stock, Spree::Variant)
+          variants = variants.in_stock
+        elsif suppliable_only
+          variants = variants.suppliable
+        end
         variants
       end
 
       def variant_params
         params.require(:variant).permit(permitted_variant_attributes)
+      end
+
+      def include_list
+        [{ option_values: :option_type }, :product, :default_price, :images, { stock_items: :stock_location }]
       end
     end
   end

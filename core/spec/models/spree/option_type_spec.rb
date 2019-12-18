@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::OptionType, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::OptionType, type: :model do
   context "touching" do
     it "should touch a product" do
       product_option_type = create(:product_option_type)

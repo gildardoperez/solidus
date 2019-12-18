@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   # Records store specific configuration such as store name and URL.
   #
@@ -9,6 +11,10 @@ module Spree
   class Store < Spree::Base
     has_many :store_payment_methods, inverse_of: :store
     has_many :payment_methods, through: :store_payment_methods
+
+    has_many :store_shipping_methods, inverse_of: :store
+    has_many :shipping_methods, through: :store_shipping_methods
+
     has_many :orders, class_name: "Spree::Order"
 
     validates :code, presence: true, uniqueness: { allow_blank: true }
@@ -21,7 +27,30 @@ module Spree
 
     scope :by_url, lambda { |url| where("url like ?", "%#{url}%") }
 
+    class << self
+      deprecate by_url: "Spree::Store.by_url is DEPRECATED", deprecator: Spree::Deprecation
+    end
+
+    def available_locales
+      locales = super()
+      if locales
+        super().split(",").map(&:to_sym)
+      else
+        Spree.i18n_available_locales
+      end
+    end
+
+    def available_locales=(locales)
+      locales = locales.reject(&:blank?)
+      if locales.empty?
+        super(nil)
+      else
+        super(locales.map(&:to_s).join(","))
+      end
+    end
+
     def self.current(store_key)
+      Spree::Deprecation.warn "Spree::Store.current is DEPRECATED"
       current_store = Store.find_by(code: store_key) || Store.by_url(store_key).first if store_key
       current_store || Store.default
     end

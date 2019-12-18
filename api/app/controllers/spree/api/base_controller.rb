@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spree/api/responders'
 
 module Spree
@@ -5,6 +7,7 @@ module Spree
     class BaseController < ActionController::Base
       self.responder = Spree::Api::Responders::AppResponder
       respond_to :json
+      protect_from_forgery unless: -> { request.format.json? }
 
       include CanCan::ControllerAdditions
       include Spree::Core::ControllerHelpers::Store
@@ -16,14 +19,12 @@ module Spree
 
       attr_accessor :current_api_user
 
-      class_attribute :error_notifier
-
       before_action :load_user
       before_action :authorize_for_order, if: proc { order_token.present? }
       before_action :authenticate_user
       before_action :load_user_roles
 
-      rescue_from StandardError, with: :error_during_processing
+      rescue_from ActionController::ParameterMissing, with: :parameter_missing_error
       rescue_from ActiveRecord::RecordNotFound, with: :not_found
       rescue_from CanCan::AccessDenied, with: :unauthorized
       rescue_from Spree::Core::GatewayError, with: :gateway_error
@@ -48,9 +49,9 @@ module Spree
       def authenticate_user
         unless @current_api_user
           if requires_authentication? && api_key.blank? && order_token.blank?
-            render "spree/api/errors/must_specify_api_key", status: 401
+            render "spree/api/errors/must_specify_api_key", status: :unauthorized
           elsif order_token.blank? && (requires_authentication? || api_key.present?)
-            render "spree/api/errors/invalid_api_key", status: 401
+            render "spree/api/errors/invalid_api_key", status: :unauthorized
           end
         end
       end
@@ -64,16 +65,7 @@ module Spree
       end
 
       def unauthorized
-        render "spree/api/errors/unauthorized", status: 401
-      end
-
-      def error_during_processing(exception)
-        Rails.logger.error exception.message
-        Rails.logger.error exception.backtrace.join("\n")
-
-        error_notifier.call(exception, self) if error_notifier
-
-        render json: { exception: exception.message }, status: 422
+        render "spree/api/errors/unauthorized", status: :unauthorized
       end
 
       def gateway_error(exception)
@@ -81,12 +73,20 @@ module Spree
         invalid_resource!(@order)
       end
 
+      def parameter_missing_error(exception)
+        render json: {
+          exception: exception.message,
+          error: exception.message,
+          missing_param: exception.param
+        }, status: :unprocessable_entity
+      end
+
       def requires_authentication?
         Spree::Api::Config[:requires_authentication]
       end
 
       def not_found
-        render "spree/api/errors/not_found", status: 404
+        render "spree/api/errors/not_found", status: :not_found
       end
 
       def current_ability
@@ -96,13 +96,30 @@ module Spree
       def invalid_resource!(resource)
         Rails.logger.error "invalid_resouce_errors=#{resource.errors.full_messages}"
         @resource = resource
-        render "spree/api/errors/invalid_resource", status: 422
+        render "spree/api/errors/invalid_resource", status: :unprocessable_entity
       end
 
       def api_key
-        request.headers["X-Spree-Token"] || params[:token]
+        bearer_token || spree_token || params[:token]
       end
       helper_method :api_key
+
+      def bearer_token
+        pattern = /^Bearer /
+        header = request.headers["Authorization"]
+        header.gsub(pattern, '') if header.present? && header.match(pattern)
+      end
+
+      def spree_token
+        token = request.headers["X-Spree-Token"]
+        return if token.blank?
+
+        Spree::Deprecation.warn(
+          'The custom X-Spree-Token request header is deprecated and will be removed in the next release.' \
+          ' Please use bearer token authorization header instead.'
+        )
+        token
+      end
 
       def order_token
         request.headers["X-Spree-Order-Token"] || params[:order_token]
@@ -147,8 +164,8 @@ module Spree
 
       def lock_order
         OrderMutex.with_lock!(@order) { yield }
-      rescue Spree::OrderMutex::LockFailed => e
-        render plain: e.message, status: 409
+      rescue Spree::OrderMutex::LockFailed => error
+        render plain: error.message, status: :conflict
       end
 
       def insufficient_stock_error(exception)
@@ -158,7 +175,7 @@ module Spree
             errors: [I18n.t(:quantity_is_not_available, scope: "spree.api.order")],
             type: 'insufficient_stock'
           },
-          status: 422
+          status: :unprocessable_entity
         )
       end
 

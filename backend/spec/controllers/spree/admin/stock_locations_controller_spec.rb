@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 module Spree
@@ -9,7 +11,7 @@ module Spree
       context "with no countries present" do
         it "cannot create a new stock location" do
           get :new
-          expect(flash[:error]).to eq(Spree.t(:stock_locations_need_a_default_country))
+          expect(flash[:error]).to eq(I18n.t('spree.stock_locations_need_a_default_country'))
           expect(response).to redirect_to(spree.admin_stock_locations_path)
         end
       end
@@ -18,23 +20,23 @@ module Spree
         let(:country) { create :country, iso: "BR" }
 
         before do
-          Spree::Config[:default_country_iso] = country.iso
+          stub_spree_preferences(default_country_iso: country.iso)
         end
 
         it "can create a new stock location" do
           get :new
-          expect(response).to be_success
+          expect(response).to be_successful
         end
       end
 
       context "with a country with the ISO code of 'US' existing" do
         before do
-          FactoryGirl.create(:country, iso: 'US')
+          FactoryBot.create(:country, iso: 'US')
         end
 
         it "can create a new stock location" do
           get :new
-          expect(response).to be_success
+          expect(response).to be_successful
         end
       end
     end

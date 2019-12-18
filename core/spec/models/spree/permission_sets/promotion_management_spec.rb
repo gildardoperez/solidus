@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::PermissionSets::PromotionManagement do
+require 'rails_helper'
+
+RSpec.describe Spree::PermissionSets::PromotionManagement do
   let(:ability) { DummyAbility.new }
 
   subject { ability }
@@ -14,6 +16,7 @@ describe Spree::PermissionSets::PromotionManagement do
     it { is_expected.to be_able_to(:manage, Spree::PromotionRule) }
     it { is_expected.to be_able_to(:manage, Spree::PromotionAction) }
     it { is_expected.to be_able_to(:manage, Spree::PromotionCategory) }
+    it { is_expected.to be_able_to(:manage, Spree::PromotionCode) }
   end
 
   context "when not activated" do
@@ -21,5 +24,6 @@ describe Spree::PermissionSets::PromotionManagement do
     it { is_expected.not_to be_able_to(:manage, Spree::PromotionRule) }
     it { is_expected.not_to be_able_to(:manage, Spree::PromotionAction) }
     it { is_expected.not_to be_able_to(:manage, Spree::PromotionCategory) }
+    it { is_expected.not_to be_able_to(:manage, Spree::PromotionCode) }
   end
 end

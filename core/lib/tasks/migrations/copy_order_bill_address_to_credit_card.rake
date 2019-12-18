@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 namespace 'spree:migrations:copy_order_bill_address_to_credit_card' do
   # This copies the billing address from the order associated with a
   # credit card's most recent payment to the credit card.
@@ -11,7 +13,7 @@ namespace 'spree:migrations:copy_order_bill_address_to_credit_card' do
   # This task should be safe to run multiple times.
 
   task up: :environment do
-    puts "Copying order bill addresses to credit cards"
+    Spree::Deprecation.warn("rake spree:migrations:copy_order_bill_address_to_credit_card:up has been deprecated and will be removed with Solidus 3.0.")
 
     if Spree::CreditCard.connection.adapter_name =~ /postgres/i
       postgres_copy
@@ -21,6 +23,8 @@ namespace 'spree:migrations:copy_order_bill_address_to_credit_card' do
   end
 
   task down: :environment do
+    Spree::Deprecation.warn("rake spree:migrations:copy_order_bill_address_to_credit_card:down has been deprecated and will be removed with Solidus 3.0.")
+
     Spree::CreditCard.update_all(address_id: nil)
   end
 
@@ -51,8 +55,6 @@ namespace 'spree:migrations:copy_order_bill_address_to_credit_card' do
   # slow.
   def postgres_copy
     batch_size = 10_000
-
-    puts "last id: #{last_credit_card_id}"
 
     current_start_id = 1
 

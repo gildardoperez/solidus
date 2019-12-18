@@ -1,11 +1,13 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 class FakesController < ApplicationController
   include Spree::Core::ControllerHelpers::Auth
   def index; render plain: 'index'; end
 end
 
-describe Spree::Core::ControllerHelpers::Auth, type: :controller do
+RSpec.describe Spree::Core::ControllerHelpers::Auth, type: :controller do
   controller(FakesController) {}
 
   describe '#current_ability' do
@@ -38,6 +40,7 @@ describe Spree::Core::ControllerHelpers::Auth, type: :controller do
     end
     it 'sends cookie header' do
       get :index
+      expect(response.headers["Set-Cookie"]).to match(/guest_token.*HttpOnly/)
       expect(response.cookies['guest_token']).not_to be_nil
     end
   end
@@ -52,11 +55,15 @@ describe Spree::Core::ControllerHelpers::Auth, type: :controller do
 
   describe '#try_spree_current_user' do
     it 'calls spree_current_user when define spree_current_user method' do
-      expect(controller).to receive(:spree_current_user)
+      without_partial_double_verification do
+        expect(controller).to receive(:spree_current_user)
+      end
       controller.try_spree_current_user
     end
     it 'calls current_spree_user when define current_spree_user method' do
-      expect(controller).to receive(:current_spree_user)
+      without_partial_double_verification do
+        expect(controller).to receive(:current_spree_user)
+      end
       controller.try_spree_current_user
     end
     it 'returns nil' do

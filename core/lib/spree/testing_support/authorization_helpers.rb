@@ -1,3 +1,7 @@
+# frozen_string_literal: true
+
+require 'cancan'
+
 module Spree
   module TestingSupport
     module AuthorizationHelpers

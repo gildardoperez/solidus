@@ -1,31 +1,31 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
-  describe ShippingCalculator, type: :model do
-    let(:variant1) { build(:variant, price: 10) }
-    let(:variant2) { build(:variant, price: 20) }
+  RSpec.describe ShippingCalculator, type: :model do
+    let(:line_item1) { build(:line_item, price: 10) }
+    let(:line_item2) { build(:line_item, price: 20) }
+
+    let(:inventory_unit1) { build(:inventory_unit, line_item: line_item1) }
+    let(:inventory_unit2) { build(:inventory_unit, line_item: line_item2) }
 
     let(:package) do
-      build(:stock_package, variants_contents: { variant1 => 2, variant2 => 1 })
+      build(
+        :stock_package,
+        contents: [
+          Spree::Stock::ContentItem.new(inventory_unit1),
+          Spree::Stock::ContentItem.new(inventory_unit1),
+          Spree::Stock::ContentItem.new(inventory_unit2)
+        ]
+      )
     end
 
-    subject { ShippingCalculator.new }
-
-    it 'computes with a shipment' do
-      shipment = mock_model(Spree::Shipment)
-      expect(subject).to receive(:compute_shipment).with(shipment)
-      subject.compute(shipment)
-    end
+    subject { described_class.new }
 
     it 'computes with a package' do
       expect(subject).to receive(:compute_package).with(package)
       subject.compute(package)
-    end
-
-    it 'compute_shipment must be overridden' do
-      expect {
-        subject.compute_shipment(shipment)
-      }.to raise_error NameError
     end
 
     it 'compute_package must be overridden' do

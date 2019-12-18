@@ -1,12 +1,13 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::OrderInventory, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::OrderInventory, type: :model do
   let(:order) { create :completed_order_with_totals }
   let(:line_item) { order.line_items.first }
   let(:shipment) { order.shipments.first }
   let(:variant) { subject.variant }
   let(:stock_item) { shipment.stock_location.stock_item(variant) }
-
 
   subject { described_class.new(order, line_item) }
 
@@ -15,7 +16,7 @@ describe Spree::OrderInventory, type: :model do
     let(:new_quantity) { 3 }
 
     before do
-      line_item.update_attributes!(quantity: old_quantity)
+      line_item.update!(quantity: old_quantity)
 
       line_item.update_column(:quantity, new_quantity)
       subject.line_item.reload
@@ -34,12 +35,19 @@ describe Spree::OrderInventory, type: :model do
     end
 
     context "order is not completed" do
-      before { order.update_columns completed_at: nil }
+      let(:inventory_unit_finalizer) { double(:inventory_unit_finalizer, run!: [true]) }
 
-      it "doesn't unstock items" do
-        expect {
-          subject.verify(shipment)
-        }.not_to change { stock_item.reload.count_on_hand }
+      before do
+        allow(Spree::Stock::InventoryUnitsFinalizer)
+          .to receive(:new).and_return(inventory_unit_finalizer)
+
+        order.update_columns completed_at: nil
+      end
+
+      it "doesn't finalize the items" do
+        expect(inventory_unit_finalizer).to_not receive(:run!)
+
+        subject.verify(shipment)
       end
     end
 
@@ -64,10 +72,10 @@ describe Spree::OrderInventory, type: :model do
     context "store doesnt track inventory" do
       let(:new_quantity) { 1 }
 
-      before { Spree::Config.track_inventory_levels = false }
+      before { stub_spree_preferences(track_inventory_levels: false) }
 
       it "creates on hand inventory units" do
-        variant.stock_items.destroy_all
+        variant.stock_items.each(&:really_destroy!)
 
         subject.verify(shipment)
 
@@ -78,11 +86,11 @@ describe Spree::OrderInventory, type: :model do
     end
 
     context "variant doesnt track inventory" do
-      before { variant.update_attributes!(track_inventory: false) }
+      before { variant.update!(track_inventory: false) }
       let(:new_quantity) { 1 }
 
       it "creates on hand inventory units" do
-        variant.stock_items.destroy_all
+        variant.stock_items.each(&:really_destroy!)
 
         subject.verify(shipment)
 
@@ -156,7 +164,7 @@ describe Spree::OrderInventory, type: :model do
     let(:new_quantity) { 2 }
 
     before do
-      line_item.update_attributes!(quantity: old_quantity)
+      line_item.update!(quantity: old_quantity)
 
       line_item.update_column(:quantity, new_quantity)
       subject.line_item.reload

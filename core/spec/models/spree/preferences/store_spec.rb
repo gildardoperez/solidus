@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Preferences::Store, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Preferences::Store, type: :model do
   before :each do
     @store = Spree::Preferences::StoreInstance.new
   end

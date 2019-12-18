@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Promotion::Actions::FreeShipping, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Promotion::Actions::FreeShipping, type: :model do
   let(:order) { create(:completed_order_with_totals) }
   let(:shipment) { order.shipments.to_a.first }
   let(:promotion) { create(:promotion, code: 'somecode', promotion_actions: [action]) }

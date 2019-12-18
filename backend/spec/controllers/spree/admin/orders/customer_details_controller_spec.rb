@@ -1,18 +1,67 @@
+# frozen_string_literal: true
+
 require "spec_helper"
 require "cancan"
-require "spree/testing_support/bar_ability"
 
 describe Spree::Admin::Orders::CustomerDetailsController, type: :controller do
   context "with authorization" do
     stub_authorization!
 
-    let(:order) { create(:order, number: "R123456789") }
+    context '#edit' do
+      context 'when order has no shipping nor billing address' do
+        let(:order) { create(:order, number: "R123456789", ship_address: nil, bill_address: nil) }
 
-    before { allow(Spree::Order).to receive(:find_by_number!) { order } }
+        context "with a checkout_zone set as the country of Canada" do
+          let!(:united_states) { create(:country, iso: 'US', states_required: true) }
+          let!(:canada) { create(:country, iso: 'CA', states_required: true) }
+          let!(:checkout_zone) { create(:zone, name: "Checkout Zone", countries: [canada]) }
+
+          before do
+            stub_spree_preferences(checkout_zone: checkout_zone.name)
+          end
+
+          context "and default_country_iso of the Canada" do
+            before do
+              stub_spree_preferences(default_country_iso: Spree::Country.find_by!(iso: "CA").iso)
+            end
+
+            it 'defaults the shipping address country to Canada' do
+              get :edit, params: { order_id: order.number }
+              expect(assigns(:order).shipping_address.country_id).to eq canada.id
+            end
+
+            it 'defaults the billing address country to Canada' do
+              get :edit, params: { order_id: order.number }
+              expect(assigns(:order).billing_address.country_id).to eq canada.id
+            end
+          end
+
+          context "and default_country_iso of the United States" do
+            before do
+              stub_spree_preferences(default_country_iso: Spree::Country.find_by!(iso: "US").iso)
+            end
+
+            it 'defaults the shipping address country to nil' do
+              get :edit, params: { order_id: order.number }
+              expect(assigns(:order).shipping_address.country_id).to be_nil
+            end
+
+            it 'defaults the billing address country to nil' do
+              get :edit, params: { order_id: order.number }
+              expect(assigns(:order).billing_address.country_id).to be_nil
+            end
+          end
+        end
+      end
+    end
 
     context "#update" do
+      let(:order) { create(:order, number: "R123456789") }
+
+      before { allow(Spree::Order).to receive_message_chain(:includes, :find_by!) { order } }
+
       it "updates + progresses the order" do
-        expect(order).to receive(:update_attributes) { true }
+        expect(order).to receive(:update) { true }
         expect(order).to receive(:next) { false }
         attributes = { order_id: order.number, order: { email: "" } }
         put :update, params: attributes
@@ -60,7 +109,7 @@ describe Spree::Admin::Orders::CustomerDetailsController, type: :controller do
 
       context "not false guest checkout param" do
         it "does not attempt to associate the user" do
-          allow(order).to receive_messages(update_attributes: true,
+          allow(order).to receive_messages(update: true,
                                            next: false,
                                            refresh_shipment_rates: true)
 

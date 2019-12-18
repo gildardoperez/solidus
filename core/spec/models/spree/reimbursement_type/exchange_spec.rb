@@ -1,14 +1,17 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
-  describe ReimbursementType::Exchange, type: :model do
+  RSpec.describe ReimbursementType::Exchange, type: :model do
     describe '.reimburse' do
       let(:reimbursement) { create(:reimbursement, return_items_count: 1) }
       let(:return_items)  { reimbursement.return_items }
       let(:new_exchange)  { double("Exchange") }
       let(:simulate)      { true }
+      let(:created_by_user) { create(:user, email: 'user@email.com') }
 
-      subject { Spree::ReimbursementType::Exchange.reimburse(reimbursement, return_items, simulate) }
+      subject { Spree::ReimbursementType::Exchange.reimburse(reimbursement, return_items, simulate, created_by: created_by_user) }
 
       context 'return items are supplied' do
         before do

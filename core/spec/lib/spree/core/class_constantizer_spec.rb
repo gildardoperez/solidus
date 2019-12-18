@@ -1,4 +1,7 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
+require 'spree/core/class_constantizer'
 
 module ClassConstantizerTest
   ClassA = Class.new
@@ -12,7 +15,7 @@ module ClassConstantizerTest
   end
 end
 
-describe Spree::Core::ClassConstantizer::Set do
+RSpec.describe Spree::Core::ClassConstantizer::Set do
   let(:set) { described_class.new }
 
   describe "#concat" do
@@ -25,6 +28,10 @@ describe Spree::Core::ClassConstantizer::Set do
       set.concat(['ClassConstantizerTest::ClassA', ClassConstantizerTest::ClassB])
       expect(set).to include(ClassConstantizerTest::ClassA)
       expect(set).to include(ClassConstantizerTest::ClassB)
+    end
+
+    it "returns itself" do
+      expect(set.concat(['String'])).to eql(set)
     end
   end
 
@@ -63,6 +70,22 @@ describe Spree::Core::ClassConstantizer::Set do
         before { set << "ClassConstantizerTest::ClassA" }
         it_should_behave_like "working code reloading"
       end
+    end
+  end
+
+  describe "#delete" do
+    before do
+      set << ClassConstantizerTest::ClassA
+    end
+
+    it "can delete by string" do
+      set.delete "ClassConstantizerTest::ClassA"
+      expect(set).not_to include(ClassConstantizerTest::ClassA)
+    end
+
+    it "can delete by class" do
+      set.delete ClassConstantizerTest::ClassA
+      expect(set).not_to include(ClassConstantizerTest::ClassA)
     end
   end
 end

@@ -1,4 +1,5 @@
-# coding: UTF-8
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe Spree::Admin::NavigationHelper, type: :helper do
@@ -82,8 +83,10 @@ describe Spree::Admin::NavigationHelper, type: :helper do
     # object_url is provided by the ResourceController abstract controller.
     # as we cannot set a custom controller for helper tests, we need to fake it
     before do
-      allow(helper).to receive(:object_url) do |o|
-        "/stock_items/#{o.to_param}"
+      without_partial_double_verification do
+        allow(helper).to receive(:object_url) do |o|
+          "/stock_items/#{o.to_param}"
+        end
       end
     end
 
@@ -108,6 +111,29 @@ describe Spree::Admin::NavigationHelper, type: :helper do
     it "allows customization of the confirmation message" do
       options[:confirm] = "Please confirm."
       expect(link).to include("data-confirm=\"Please confirm.\"")
+    end
+  end
+
+  describe "#solidus_icon" do
+    context "if given an icon_name" do
+      subject(:solidus_icon) { helper.solidus_icon('example-icon-name') }
+
+      it { is_expected.to eq "<i class=\"example-icon-name\"></i>" }
+    end
+
+    context "if not given nil icon_name" do
+      subject(:solidus_icon) { helper.solidus_icon(nil) }
+
+      it { is_expected.to eq "" }
+    end
+  end
+
+  describe "#icon" do
+    subject(:icon) { helper.icon('icon-name') }
+
+    it "is a deprecated way to use #solidus_icon" do
+      expect(Spree::Deprecation).to receive(:warn).with("icon is deprecated and will be removed from Solidus 3.0 (use solidus_icon instead)", instance_of(Array))
+      expect(subject).to eq helper.solidus_icon('icon-name')
     end
   end
 end

@@ -1,4 +1,4 @@
-$(document).ready(function () {
+Spree.ready(function () {
   'use strict';
 
   function formatOptionType(option_type) {
@@ -23,7 +23,7 @@ $(document).ready(function () {
         url: Spree.routes.option_type_search,
         quietMillis: 200,
         datatype: 'json',
-        params: { "headers": { "X-Spree-Token": Spree.api_key } },
+        params: { "headers": {  'Authorization': 'Bearer ' + Spree.api_key } },
         data: function (term) {
           return {
             q: { name_cont: term }

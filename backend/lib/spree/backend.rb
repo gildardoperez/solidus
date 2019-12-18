@@ -1,16 +1,19 @@
+# frozen_string_literal: true
+
 require 'rails/all'
 require 'jquery-rails'
-require 'jquery-ui-rails'
 require 'coffee-rails'
-require 'sass-rails'
-require 'bourbon'
+require 'sassc-rails'
 require 'handlebars_assets'
 require 'font-awesome-rails'
+require 'autoprefixer-rails'
+require 'jbuilder'
+require 'kaminari'
+require 'responders'
 
 require 'spree_core'
 require 'spree_api'
 
-require 'spree/responder'
 require 'spree/backend/action_callbacks'
 require 'spree/backend/callbacks'
 require 'spree/backend/engine'

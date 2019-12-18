@@ -1,12 +1,19 @@
-require 'rspec/expectations'
-require 'spree/i18n'
-require 'spree/testing_support/i18n'
+# frozen_string_literal: true
 
-describe "i18n" do
+require 'spec_helper'
+require 'spree/i18n'
+
+RSpec.describe "i18n" do
   before do
+    # This reload avoids an issue with I18n.available_locales being cached
+    I18n.reload!
+
     I18n.backend.store_translations(:en,
     {
       spree: {
+        i18n: {
+          this_file_language: "English"
+        },
         foo: "bar",
         bar: {
           foo: "bar within bar scope",
@@ -18,25 +25,33 @@ describe "i18n" do
       }
     })
   end
+  after do
+    I18n.reload!
+  end
 
   it "translates within the spree scope" do
-    expect(Spree.normal_t(:foo)).to eql("bar")
+    expect(Spree::Deprecation).to receive(:warn).twice
+    expect(Spree.t(:foo)).to eql("bar")
     expect(Spree.translate(:foo)).to eql("bar")
   end
 
   it "prepends a string scope" do
-    expect(Spree.normal_t(:foo, scope: "bar")).to eql("bar within bar scope")
+    expect(Spree::Deprecation).to receive(:warn)
+    expect(Spree.t(:foo, scope: "bar")).to eql("bar within bar scope")
   end
 
   it "prepends to an array scope" do
-    expect(Spree.normal_t(:foo, scope: ["bar"])).to eql("bar within bar scope")
+    expect(Spree::Deprecation).to receive(:warn)
+    expect(Spree.t(:foo, scope: ["bar"])).to eql("bar within bar scope")
   end
 
   it "returns two translations" do
-    expect(Spree.normal_t([:foo, 'bar.foo'])).to eql(["bar", "bar within bar scope"])
+    expect(Spree::Deprecation).to receive(:warn)
+    expect(Spree.t([:foo, 'bar.foo'])).to eql(["bar", "bar within bar scope"])
   end
 
   it "returns reasonable string for missing translations" do
+    expect(Spree::Deprecation).to receive(:warn)
     expect(Spree.t(:missing_entry)).to include("<span")
   end
 
@@ -44,66 +59,38 @@ describe "i18n" do
     expect(Spree::I18N_GENERIC_PLURAL).to eq 2.1
   end
 
-  context "missed + unused translations" do
-    def key_with_locale(key)
-      "#{key} (#{I18n.locale})"
+  describe "i18n_available_locales" do
+    it "should only return :en" do
+      expect(Spree.i18n_available_locales).to eq([:en])
     end
 
-    before do
-      Spree.used_translations = []
-    end
-
-    context "missed translations" do
-      def assert_missing_translation(key)
-        key = key_with_locale(key)
-        message = Spree.missing_translation_messages.detect { |m| m == key }
-        expect(message).not_to(be_nil, "expected '#{key}' to be missing, but it wasn't.")
+    context 'with unprefixed translations in another locale' do
+      before do
+        I18n.backend.store_translations(:fr, { cheese: "fromage" })
       end
 
-      it "logs missing translations" do
-        Spree.t(:missing, scope: [:else, :where])
-        Spree.check_missing_translations
-        assert_missing_translation("else")
-        assert_missing_translation("else.where")
-        assert_missing_translation("else.where.missing")
-      end
-
-      it "does not log present translations" do
-        Spree.t(:foo)
-        Spree.check_missing_translations
-        expect(Spree.missing_translation_messages).to be_empty
-      end
-
-      it "does not break when asked for multiple translations" do
-        Spree.t [:foo, 'bar.foo']
-        Spree.check_missing_translations
-        expect(Spree.missing_translation_messages).to be_empty
+      it "should only return :en" do
+        expect(Spree.i18n_available_locales).to eq([:en])
       end
     end
 
-    context "unused translations" do
-      def assert_unused_translation(key)
-        key = key_with_locale(key)
-        message = Spree.unused_translation_messages.detect { |m| m == key }
-        expect(message).not_to(be_nil, "expected '#{key}' to be unused, but it was used.")
+    context 'with spree-prefixed translations in another locale' do
+      before do
+        I18n.backend.store_translations(:fr, spree: { cheese: "fromage" })
       end
 
-      def assert_used_translation(key)
-        key = key_with_locale(key)
-        message = Spree.unused_translation_messages.detect { |m| m == key }
-        expect(message).to(be_nil, "expected '#{key}' to be used, but it wasn't.")
+      it "should return :en and :fr" do
+        expect(Spree.i18n_available_locales).to eq([:en])
+      end
+    end
+
+    context 'with specific desired key' do
+      before do
+        I18n.backend.store_translations(:fr, spree: { i18n: { this_file_language: "Français" } })
       end
 
-      it "logs translations that aren't used" do
-        Spree.check_unused_translations
-        assert_unused_translation("bar.legacy_translation")
-        assert_unused_translation("legacy_translation")
-      end
-
-      it "does not log used translations" do
-        Spree.t(:foo)
-        Spree.check_unused_translations
-        assert_used_translation("foo")
+      it "should return :en and :fr" do
+        expect(Spree.i18n_available_locales).to eq([:en, :fr])
       end
     end
   end

@@ -1,4 +1,4 @@
-require 'twitter_cldr'
+# frozen_string_literal: true
 
 module Spree
   # `Spree::Address` provides the foundational ActiveRecord model for recording and
@@ -8,14 +8,15 @@ module Spree
   class Address < Spree::Base
     extend ActiveModel::ForbiddenAttributesProtection
 
-    belongs_to :country, class_name: "Spree::Country"
-    belongs_to :state, class_name: "Spree::State"
+    belongs_to :country, class_name: "Spree::Country", optional: true
+    belongs_to :state, class_name: "Spree::State", optional: true
 
     validates :firstname, :address1, :city, :country_id, presence: true
     validates :zipcode, presence: true, if: :require_zipcode?
     validates :phone, presence: true, if: :require_phone?
 
-    validate :state_validate, :postal_code_validate
+    validate :state_validate
+    validate :validate_state_matches_country
 
     alias_attribute :first_name, :firstname
     alias_attribute :last_name, :lastname
@@ -29,8 +30,9 @@ module Spree
       where(value_attributes(attributes))
     end
 
-    def self.build_default
-      new(country: Spree::Country.default)
+    # @return [Address] an address with default attributes
+    def self.build_default(*args, &block)
+      where(country: Spree::Country.default).build(*args, &block)
     end
 
     # @return [Address] an equal address already in the database or a newly created one
@@ -120,7 +122,7 @@ module Spree
     # @deprecated Do not use this
     def empty?
       Spree::Deprecation.warn("Address#empty? is deprecated.", caller)
-      attributes.except('id', 'created_at', 'updated_at', 'country_id').all? { |_, v| v.nil? }
+      attributes.except('id', 'created_at', 'updated_at', 'country_id').all? { |_, value| value.nil? }
     end
 
     # This exists because the default Object#blank?, checks empty? if it is
@@ -171,6 +173,10 @@ module Spree
       self.country = Spree::Country.find_by!(iso: iso)
     end
 
+    def country_iso
+      country && country.iso
+    end
+
     private
 
     def state_validate
@@ -193,7 +199,7 @@ module Spree
       # ensure state_name belongs to country without states, or that it matches a predefined state name/abbr
       if state_name.present?
         if country.states.present?
-          states = country.states.find_all_by_name_or_abbr(state_name)
+          states = country.states.with_name_or_abbr(state_name)
 
           if states.size == 1
             self.state = states.first
@@ -208,12 +214,10 @@ module Spree
       errors.add :state, :blank if state.blank? && state_name.blank?
     end
 
-    def postal_code_validate
-      return if country.blank? || country.iso.blank? || !require_zipcode?
-      return if !TwitterCldr::Shared::PostalCodes.territories.include?(country.iso.downcase.to_sym)
-
-      postal_code = TwitterCldr::Shared::PostalCodes.for_territory(country.iso)
-      errors.add(:zipcode, :invalid) if !postal_code.valid?(zipcode.to_s)
+    def validate_state_matches_country
+      if state && state.country != country
+        errors.add(:state, :does_not_match_country)
+      end
     end
   end
 end

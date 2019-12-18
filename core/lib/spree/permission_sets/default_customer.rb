@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module PermissionSets
     class DefaultCustomer < PermissionSets::Base
@@ -6,8 +8,11 @@ module Spree
         can :display, OptionType
         can :display, OptionValue
         can :create, Order
-        can [:read, :update], Order do |order, token|
+        can [:read, :update], Order, Order.where(user: user) do |order, token|
           order.user == user || (order.guest_token.present? && token == order.guest_token)
+        end
+        cannot :update, Order do |order|
+          order.completed?
         end
         can :create, ReturnAuthorization do |return_authorization|
           return_authorization.order.user == user

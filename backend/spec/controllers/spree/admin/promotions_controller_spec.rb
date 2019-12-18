@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe Spree::Admin::PromotionsController, type: :controller do
@@ -6,6 +8,13 @@ describe Spree::Admin::PromotionsController, type: :controller do
   let!(:promotion1) { create(:promotion, name: "name1", code: "code1", path: "path1") }
   let!(:promotion2) { create(:promotion, name: "name2", code: "code2", path: "path2") }
   let!(:category) { create :promotion_category }
+
+  describe "#show" do
+    it "redirects to edit" do
+      expect(get(:show, params: { id: promotion1.id }))
+        .to redirect_to(action: :edit, id: promotion1.id )
+    end
+  end
 
   describe "#index" do
     it "succeeds" do

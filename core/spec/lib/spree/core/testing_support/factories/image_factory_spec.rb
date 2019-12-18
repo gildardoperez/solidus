@@ -1,4 +1,6 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 require 'spree/testing_support/factories/image_factory'
 
 RSpec.describe 'image factory' do

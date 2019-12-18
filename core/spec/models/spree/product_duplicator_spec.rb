@@ -1,11 +1,13 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
-  describe Spree::ProductDuplicator, type: :model do
+  RSpec.describe Spree::ProductDuplicator, type: :model do
     let(:product) { create(:product, properties: [create(:property, name: "MyProperty")]) }
     let!(:duplicator) { Spree::ProductDuplicator.new(product) }
 
-    let(:image) { File.open(File.expand_path('../../../fixtures/thinking-cat.jpg', __FILE__)) }
+    let(:image) { File.open(File.expand_path('../../fixtures/thinking-cat.jpg', __dir__)) }
     let(:params) { { viewable_id: product.master.id, viewable_type: 'Spree::Variant', attachment: image, alt: "position 1", position: 1 } }
 
     before do

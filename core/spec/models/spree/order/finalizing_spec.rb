@@ -1,11 +1,10 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Order, type: :model do
-  let(:order) { stub_model("Spree::Order") }
+require 'rails_helper'
 
+RSpec.describe Spree::Order, type: :model do
   context "#finalize!" do
-    let!(:store) { create(:store) }
-    let(:order) { Spree::Order.create(email: 'test@example.com', store: store) }
+    let(:order) { create(:order_ready_to_complete) }
 
     before do
       order.update_column :state, 'complete'
@@ -18,33 +17,17 @@ describe Spree::Order, type: :model do
 
     it "should sell inventory units" do
       order.shipments.each do |shipment|
-        expect(shipment).to receive(:update!)
+        expect(shipment).to receive(:update_state)
         expect(shipment).to receive(:finalize!)
       end
       order.finalize!
     end
 
-    it "should decrease the stock for each variant in the shipment" do
-      order.shipments.each do |shipment|
-        expect(shipment.stock_location).to receive(:decrease_stock_for_variant)
-      end
-      order.finalize!
-    end
-
     it "should change the shipment state to ready if order is paid" do
-      Spree::Shipment.create(order: order)
-      order.shipments.reload
-
       allow(order).to receive_messages(paid?: true, complete?: true)
       order.finalize!
       order.reload # reload so we're sure the changes are persisted
       expect(order.shipment_state).to eq('ready')
-    end
-
-    it "should not sell inventory units if track_inventory_levels is false" do
-      Spree::Config.set track_inventory_levels: false
-      expect(Spree::InventoryUnit).not_to receive(:sell_units)
-      order.finalize!
     end
 
     it "should send an order confirmation email" do
@@ -61,7 +44,7 @@ describe Spree::Order, type: :model do
     end
 
     it "should not send duplicate confirmation emails" do
-      allow(order).to receive_messages(confirmation_delivered?: true)
+      order.update(confirmation_delivered: true)
       expect(Spree::OrderMailer).not_to receive(:confirm_email)
       order.finalize!
     end

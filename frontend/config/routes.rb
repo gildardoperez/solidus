@@ -1,9 +1,12 @@
+# frozen_string_literal: true
+
 Spree::Core::Engine.routes.draw do
   root to: 'home#index'
 
   resources :products, only: [:index, :show]
 
   get '/locale/set', to: 'locale#set'
+  post '/locale/set', to: 'locale#set', as: :select_locale
 
   # non-restful checkout stuff
   patch '/checkout/update/:state', to: 'checkout#update', as: :update_checkout
@@ -15,6 +18,7 @@ Spree::Core::Engine.routes.draw do
 
   resources :orders, except: [:index, :new, :create, :destroy] do
     post :populate, on: :collection
+    resources :coupon_codes, only: :create
   end
 
   get '/cart', to: 'orders#edit', as: :cart

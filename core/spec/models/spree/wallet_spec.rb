@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Wallet, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Wallet, type: :model do
   let(:user) { create(:user) }
   let(:credit_card) { create(:credit_card, user_id: user.id) }
   let(:store_credit) { create(:store_credit, user_id: user.id) }
@@ -78,25 +80,50 @@ describe Spree::Wallet, type: :model do
             to(wallet_credit_card)
         )
       end
+
+      context "assigning nil" do
+        it "remains unset" do
+          expect(subject.default_wallet_payment_source).to be_nil
+          subject.default_wallet_payment_source = nil
+          expect(subject.default_wallet_payment_source).to be_nil
+        end
+      end
     end
 
-    context "with other payment source already default" do
+    context "with a default" do
       let!(:wallet_credit_card) { subject.add(credit_card) }
-      let!(:wallet_store_credit) { subject.add(store_credit) }
 
       before { subject.default_wallet_payment_source = wallet_credit_card }
 
-      it "sets the new payment source as the default" do
-        expect { subject.default_wallet_payment_source = wallet_store_credit }.to(
-          change(subject, :default_wallet_payment_source).
-            from(wallet_credit_card).
-            to(wallet_store_credit)
-        )
+      context "assigning a new default" do
+        let!(:wallet_store_credit) { subject.add(store_credit) }
+
+        it "sets the new payment source as the default" do
+          expect {
+            subject.default_wallet_payment_source = wallet_store_credit
+          }.to change{ subject.default_wallet_payment_source }.from(wallet_credit_card).to(wallet_store_credit)
+        end
+      end
+
+      context "assigning same default" do
+        it "does not change the default payment source" do
+          expect {
+            subject.default_wallet_payment_source = wallet_credit_card
+          }.not_to change{ subject.default_wallet_payment_source }
+        end
+      end
+
+      context "assigning nil" do
+        it "clears the default payment source" do
+          expect {
+            subject.default_wallet_payment_source = nil
+          }.to change{ subject.default_wallet_payment_source }.to nil
+        end
       end
     end
 
     context 'with a wallet payment source that does not belong to the wallet' do
-      let(:other_wallet_credit_card) { other_wallet.add(credit_card) }
+      let(:other_wallet_credit_card) { other_wallet.add(other_credit_card) }
       let(:other_wallet) { Spree::Wallet.new(other_user) }
       let(:other_credit_card) { create(:credit_card, user_id: other_user.id) }
       let(:other_user) { create(:user) }

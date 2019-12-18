@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   # Tax calculation is broken out at this level to allow easy integration with 3rd party
   # taxation systems.  Those systems are usually geared toward calculating all items at once
@@ -23,7 +25,7 @@ module Spree
         additional_tax_total = percent_of_tax * return_item.inventory_unit.additional_tax_total
         included_tax_total   = percent_of_tax * return_item.inventory_unit.included_tax_total
 
-        return_item.update_attributes!({
+        return_item.update!({
           additional_tax_total: additional_tax_total,
           included_tax_total:   included_tax_total
         })

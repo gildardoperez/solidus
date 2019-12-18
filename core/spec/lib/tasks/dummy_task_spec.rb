@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe 'dummy_task' do
+require 'rails_helper'
+
+RSpec.describe 'dummy_task' do
   include_context(
     'rake',
     task_name: 'dummy_task',

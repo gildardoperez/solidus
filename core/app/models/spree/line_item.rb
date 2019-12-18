@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module Spree
   # Variants placed in the Order at a particular price.
   #
   # `Spree::LineItem` is an ActiveRecord model which records which `Spree::Variant`
-  # a customer has chosen to place in their order. It also acts as the permenent
+  # a customer has chosen to place in their order. It also acts as the permanent
   # record of the customer's order by recording relevant price, taxation, and inventory
   # concerns. Line items can also have adjustments placed on them as part of the
   # promotion system.
@@ -10,9 +12,9 @@ module Spree
   class LineItem < Spree::Base
     class CurrencyMismatch < StandardError; end
 
-    belongs_to :order, class_name: "Spree::Order", inverse_of: :line_items, touch: true
-    belongs_to :variant, -> { with_deleted }, class_name: "Spree::Variant", inverse_of: :line_items
-    belongs_to :tax_category, class_name: "Spree::TaxCategory"
+    belongs_to :order, class_name: "Spree::Order", inverse_of: :line_items, touch: true, optional: true
+    belongs_to :variant, -> { with_deleted }, class_name: "Spree::Variant", inverse_of: :line_items, optional: true
+    belongs_to :tax_category, class_name: "Spree::TaxCategory", optional: true
 
     has_one :product, through: :variant
 
@@ -57,24 +59,41 @@ module Spree
     def discounted_amount
       amount + promo_total
     end
+    deprecate discounted_amount: :total_before_tax, deprecator: Spree::Deprecation
 
     # @return [BigDecimal] the amount of this line item, taking into
     #   consideration all its adjustments.
-    def final_amount
+    def total
       amount + adjustment_total
     end
-    alias total final_amount
+    alias final_amount total
+    deprecate final_amount: :total, deprecator: Spree::Deprecation
 
-    # @return [BigDecimal] the amount of this line item before included tax
-    # @note just like `amount`, this does not include any additional tax
-    def pre_tax_amount
-      discounted_amount - included_tax_total
+    # @return [BigDecimal] the amount of this item, taking into consideration
+    #   all non-tax adjustments.
+    def total_before_tax
+      amount + adjustments.select { |value| !value.tax? && value.eligible? }.sum(&:amount)
     end
 
+    # @return [BigDecimal] the amount of this line item before VAT tax
+    # @note just like `amount`, this does not include any additional tax
+    def total_excluding_vat
+      total_before_tax - included_tax_total
+    end
+    alias pre_tax_amount total_excluding_vat
+    deprecate pre_tax_amount: :total_excluding_vat, deprecator: Spree::Deprecation
+
     extend Spree::DisplayMoney
-    money_methods :amount, :discounted_amount, :final_amount, :pre_tax_amount, :price,
-                  :included_tax_total, :additional_tax_total
+    money_methods :amount, :discounted_amount, :price,
+                  :included_tax_total, :additional_tax_total,
+                  :total, :total_before_tax, :total_excluding_vat
+    deprecate display_discounted_amount: :display_total_before_tax, deprecator: Spree::Deprecation
+    alias display_final_amount display_total
+    deprecate display_final_amount: :display_total, deprecator: Spree::Deprecation
+    alias display_pre_tax_amount display_total_excluding_vat
+    deprecate display_pre_tax_amount: :display_total_excluding_vat, deprecator: Spree::Deprecation
     alias discounted_money display_discounted_amount
+    deprecate discounted_money: :display_total_before_tax, deprecator: Spree::Deprecation
 
     # @return [Spree::Money] the price of this line item
     alias money_price display_price
@@ -175,7 +194,7 @@ module Spree
     end
 
     def update_inventory
-      if (changed? || target_shipment.present?) && order.has_checkout_step?("delivery")
+      if (saved_changes? || target_shipment.present?) && order.has_checkout_step?("delivery")
         Spree::OrderInventory.new(order, self).verify(target_shipment)
       end
     end

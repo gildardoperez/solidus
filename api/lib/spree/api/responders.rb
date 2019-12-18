@@ -1,10 +1,13 @@
-require 'spree/api/responders/rabl_template'
+# frozen_string_literal: true
+
+require 'responders'
+require 'spree/api/responders/jbuilder_template'
 
 module Spree
   module Api
     module Responders
       class AppResponder < ActionController::Responder
-        include RablTemplate
+        include JbuilderTemplate
       end
     end
   end

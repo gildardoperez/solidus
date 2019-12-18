@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Refund, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Refund, type: :model do
   describe 'create' do
     let(:amount) { 100.0 }
     let(:amount_in_cents) { amount * 100 }
@@ -145,7 +147,7 @@ describe Spree::Refund, type: :model do
       end
 
       it 'raises Spree::Core::GatewayError' do
-        expect { subject }.to raise_error(Spree::Core::GatewayError, Spree.t(:unable_to_connect_to_gateway))
+        expect { subject }.to raise_error(Spree::Core::GatewayError, I18n.t('spree.unable_to_connect_to_gateway'))
       end
     end
 
@@ -160,17 +162,26 @@ describe Spree::Refund, type: :model do
         }
       end
     end
+
+    context 'when payment is not present' do
+      let(:refund) { build(:refund, payment: nil) }
+
+      it 'returns a validation error' do
+        expect { refund.save! }.to raise_error 'Validation failed: Payment can\'t be blank'
+      end
+    end
   end
 
   describe 'total_amount_reimbursed_for' do
     let(:customer_return) { reimbursement.customer_return }
     let(:reimbursement) { create(:reimbursement) }
     let!(:default_refund_reason) { Spree::RefundReason.find_or_create_by!(name: Spree::RefundReason::RETURN_PROCESSING_REASON, mutable: false) }
+    let(:created_by_user) { create(:user, email: 'user@email.com') }
 
     subject { Spree::Refund.total_amount_reimbursed_for(reimbursement) }
 
     context 'with reimbursements performed' do
-      before { reimbursement.perform! }
+      before { reimbursement.perform!(created_by: created_by_user) }
 
       it 'returns the total amount' do
         amount = Spree::Refund.total_amount_reimbursed_for(reimbursement)

@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Promotion::Rules::Product, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Promotion::Rules::Product, type: :model do
   let(:rule) { Spree::Promotion::Rules::Product.new(rule_options) }
   let(:rule_options) { {} }
 
@@ -36,6 +38,11 @@ describe Spree::Promotion::Rules::Product, type: :model do
           expect(rule.eligibility_errors.full_messages.first).
             to eq "You need to add an applicable product before applying this coupon code."
         end
+        it "sets an error code" do
+          rule.eligible?(order)
+          expect(rule.eligibility_errors.details[:base].first[:error_code]).
+            to eq :no_applicable_products
+        end
       end
     end
 
@@ -59,6 +66,11 @@ describe Spree::Promotion::Rules::Product, type: :model do
           expect(rule.eligibility_errors.full_messages.first).
             to eq "This coupon code can't be applied because you don't have all of the necessary products in your cart."
         end
+        it "sets an error code" do
+          rule.eligible?(order)
+          expect(rule.eligibility_errors.details[:base].first[:error_code]).
+            to eq :missing_product
+        end
       end
     end
 
@@ -81,6 +93,11 @@ describe Spree::Promotion::Rules::Product, type: :model do
           rule.eligible?(order)
           expect(rule.eligibility_errors.full_messages.first).
             to eq "Your cart contains a product that prevents this coupon code from being applied."
+        end
+        it "sets an error code" do
+          rule.eligible?(order)
+          expect(rule.eligibility_errors.details[:base].first[:error_code]).
+            to eq :has_excluded_product
         end
       end
     end

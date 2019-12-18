@@ -1,10 +1,12 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe "New Order", type: :feature do
   include OrderFeatureHelper
 
   let!(:product) { create(:product_in_stock) }
-  let!(:state) { create(:state) }
+  let!(:state) { create(:state, state_code: 'CA') }
   let!(:store) { create(:store) }
   let!(:user) { create(:user, ship_address: create(:address), bill_address: create(:address)) }
   let!(:payment_method) { create(:check_payment_method) }
@@ -24,8 +26,13 @@ describe "New Order", type: :feature do
     expect(current_path).to eql(spree.edit_admin_order_customer_path(Spree::Order.last))
   end
 
+  it "default line item quantity is 1", js: true do
+    within ".line-items" do
+      expect(page).to have_field 'quantity', with: '1'
+    end
+  end
+
   it "completes new order succesfully without using the cart", js: true do
-    click_on 'Cart'
     add_line_item product.name
 
     click_on "Customer"
@@ -55,12 +62,11 @@ describe "New Order", type: :feature do
     click_on "Ship"
 
     within '.carton-state' do
-      expect(page).to have_content('shipped')
+      expect(page).to have_content('Shipped')
     end
   end
 
   it 'can create split payments', js: true do
-    click_on 'Cart'
     add_line_item product.name
 
     click_on "Customer"
@@ -87,7 +93,6 @@ describe "New Order", type: :feature do
 
   context "adding new item to the order", js: true do
     it "inventory items show up just fine and are also registered as shipments" do
-      click_on 'Cart'
       add_line_item product.name
 
       within(".line-items") do
@@ -119,7 +124,6 @@ describe "New Order", type: :feature do
     end
 
     it "can still see line items" do
-      click_on 'Cart'
       add_line_item product.name
 
       within(".line-items") do
@@ -149,19 +153,66 @@ describe "New Order", type: :feature do
       fill_in_address
       click_on "Update"
 
-      click_on "Shipments"
+      # Automatically redirected to Shipments page
+      within '.no-objects-found' do
+        click_on "Cart"
+      end
 
-      select2_search product.name, from: Spree.t(:name_or_sku)
-
-      click_icon :plus
-
-      expect(page).to have_css('.stock-item')
+      add_line_item product.name
 
       click_on "Payments"
-      click_on "Continue"
+      click_on "Update"
 
-      within(".additional-info .state") do
-        expect(page).to have_content("confirm")
+      within(".additional-info") do
+        expect(page).to have_content("Confirm")
+      end
+    end
+  end
+
+  context "when changing customer", :js do
+    let!(:other_user) { create :user, bill_address: bill_address }
+
+    context "when one customer address have only textual state" do
+      let(:country) { create :country, iso: "IT" }
+      let(:bill_address) { create :address, country: country, state: nil, state_name: "Veneto" }
+
+      it "changes the bill address state accordingly" do
+        click_on "Customer"
+
+        within "#select-customer" do
+          targetted_select2_search user.email, from: "#s2id_customer_search"
+        end
+
+        expect(find("select#order_bill_address_attributes_state_id").value).to eq user.bill_address.state_id.to_s
+
+        within "#select-customer" do
+          targetted_select2_search other_user.email, from: "#s2id_customer_search"
+        end
+
+        expect(find("select#order_bill_address_attributes_state_id", visible: false).value).to eq ""
+        expect(find("#order_bill_address_attributes_state_name").value).to eq other_user.bill_address.state_name
+      end
+    end
+
+    context "when customers have same country but different state" do
+      let(:different_state) { Spree::State.where.not(id: user.bill_address.state_id).first }
+
+      let(:bill_address) { create :address, country: user.bill_address.country, state: different_state }
+
+      it "changes the bill address state accordingly" do
+        click_on "Customer"
+
+        within "#select-customer" do
+          targetted_select2_search user.email, from: "#s2id_customer_search"
+        end
+
+        expect(find('#order_bill_address_attributes_state_id').value).to eq user.bill_address.state_id.to_s
+
+        within "#select-customer" do
+          targetted_select2_search other_user.email, from: "#s2id_customer_search"
+        end
+
+        expect(find('#order_bill_address_attributes_state_id').value).to eq other_user.bill_address.state_id.to_s
       end
     end
   end
@@ -175,8 +226,6 @@ describe "New Order", type: :feature do
     end
 
     it "transitions to delivery not to complete" do
-      click_on 'Cart'
-
       add_line_item product.name
 
       expect(page).to have_css('.line-item')
@@ -184,7 +233,7 @@ describe "New Order", type: :feature do
       click_link "Customer"
       targetted_select2 user.email, from: "#s2id_customer_search"
       click_button "Update"
-      expect(Spree::Order.last.state).to eq 'delivery'
+      expect(page).to have_css('.order-state', text: 'Delivery')
     end
   end
 
@@ -200,14 +249,131 @@ describe "New Order", type: :feature do
     end
   end
 
-  def fill_in_address(kind = "bill")
+  context 'with a checkout_zone set as the country of Canada' do
+    let!(:canada) { create(:country, iso: 'CA', states_required: true) }
+    let!(:canada_state) { create(:state, country: canada) }
+    let!(:checkout_zone) { create(:zone, name: 'Checkout Zone', countries: [canada]) }
+
+    before do
+      Spree::Country.update_all(states_required: true)
+      stub_spree_preferences(checkout_zone: checkout_zone.name)
+    end
+
+    context 'and default_country_iso of the United States' do
+      before do
+        stub_spree_preferences(default_country_iso: Spree::Country.find_by!(iso: 'US').iso)
+      end
+
+      it 'the shipping address country select includes only options for Canada' do
+        visit spree.new_admin_order_path
+        click_link 'Customer'
+        within '#shipping' do
+          expect(page).to have_select(
+            'Country',
+            options: ['Canada']
+          )
+        end
+      end
+
+      it 'does not show any shipping address state' do
+        visit spree.new_admin_order_path
+        click_link 'Customer'
+        within '#shipping' do
+          expect(page).to have_select(
+            'State',
+            disabled: true,
+            visible: false,
+            options: ['']
+          )
+        end
+      end
+
+      it 'the billing address country select includes only options for Canada' do
+        visit spree.new_admin_order_path
+        click_link 'Customer'
+        within '#billing' do
+          expect(page).to have_select(
+            'Country',
+            options: ['Canada']
+          )
+        end
+      end
+
+      it 'does not show any billing address state' do
+        visit spree.new_admin_order_path
+        click_link 'Customer'
+        within '#billing' do
+          expect(page).to have_select(
+            'State',
+            disabled: true,
+            visible: false,
+            options: ['']
+          )
+        end
+      end
+    end
+
+    context 'and default_country_iso of Canada' do
+      before do
+        stub_spree_preferences(default_country_iso: Spree::Country.find_by!(iso: 'CA').iso)
+      end
+
+      it 'defaults the shipping address country to Canada' do
+        visit spree.new_admin_order_path
+        click_link 'Customer'
+        within '#shipping' do
+          expect(page).to have_select(
+            'Country',
+            selected: 'Canada',
+            options: ['Canada']
+          )
+        end
+      end
+
+      it 'shows relevant shipping address states' do
+        visit spree.new_admin_order_path
+        click_link 'Customer'
+        within '#shipping' do
+          expect(page).to have_select(
+            'State',
+            options: [''] + canada.states.map(&:name)
+          )
+        end
+      end
+
+      it 'defaults the billing address country to Canada' do
+        visit spree.new_admin_order_path
+        click_link 'Customer'
+        within '#billing' do
+          expect(page).to have_select(
+            'Country',
+            selected: 'Canada',
+            options: ['Canada']
+          )
+        end
+      end
+
+      it 'shows relevant billing address states' do
+        visit spree.new_admin_order_path
+        click_link 'Customer'
+        within '#billing' do
+          expect(page).to have_select(
+            'State',
+            options: [''] + canada.states.map(&:name)
+          )
+        end
+      end
+    end
+  end
+
+  def fill_in_address
     fill_in "First Name",                with: "John 99"
     fill_in "Last Name",                 with: "Doe"
     fill_in "Street Address",            with: "100 first lane"
     fill_in "Street Address (cont'd)",   with: "#101"
     fill_in "City",                      with: "Bethesda"
     fill_in "Zip Code",                  with: "20170"
-    targetted_select2_search state.name, from: "#s2id_order_#{kind}_address_attributes_state_id"
-    fill_in "Phone",                     with: "123-456-7890"
+    select state.name, from: "State"
+    fill_in "Phone", with: "123-456-7890"
   end
 end

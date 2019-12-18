@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 feature 'Promotion with product rule', js: true do
@@ -10,7 +12,7 @@ feature 'Promotion with product rule', js: true do
   given(:promotion) { create :promotion }
 
   def add_promotion_rule_of_type(type)
-    select2 type, from: "Add rule of type"
+    select type, from: "Discount Rules"
     within("#rules_container") { click_button "Add" }
   end
 

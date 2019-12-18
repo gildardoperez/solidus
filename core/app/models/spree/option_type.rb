@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   # Option types denote the different options for a variant. A typical option
   # type would be a size, with that option type’s values being something such
@@ -22,6 +24,8 @@ module Spree
 
     after_touch :touch_all_products
     after_save :touch_all_products
+
+    self.whitelisted_ransackable_attributes = %w[name]
 
     def touch_all_products
       products.find_each(&:touch)

@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::StoreCreditEvent do
+require 'rails_helper'
+
+RSpec.describe Spree::StoreCreditEvent do
   describe ".exposed_events" do
     [
       Spree::StoreCredit::ELIGIBLE_ACTION,
@@ -32,11 +34,11 @@ describe Spree::StoreCreditEvent do
     end
   end
 
-  describe "update reason validation" do
+  describe "update store credit reason validation" do
     subject { event.valid? }
 
     context "adjustment event" do
-      context "has an update reason" do
+      context "has a store credit reason" do
         let(:event) { build(:store_credit_adjustment_event) }
 
         it "returns true" do
@@ -44,22 +46,22 @@ describe Spree::StoreCreditEvent do
         end
       end
 
-      context "doesn't have an update reason" do
-        let(:event) { build(:store_credit_adjustment_event, update_reason: nil) }
+      context "doesn't have a store credit reason" do
+        let(:event) { build(:store_credit_adjustment_event, store_credit_reason: nil) }
 
         it "returns false" do
           expect(subject).to eq false
         end
 
-        it "adds an error message indicating the update reason is missing" do
+        it "adds an error message indicating the store credit reason is missing" do
           subject
-          expect(event.errors.full_messages).to match ["Update reason can't be blank"]
+          expect(event.errors.full_messages).to match ["Store credit reason can't be blank"]
         end
       end
     end
 
     context "invalidate event" do
-      context "has an update reason" do
+      context "has a store credit reason" do
         let(:event) { build(:store_credit_invalidate_event) }
 
         it "returns true" do
@@ -67,21 +69,21 @@ describe Spree::StoreCreditEvent do
         end
       end
 
-      context "doesn't have an update reason" do
-        let(:event) { build(:store_credit_invalidate_event, update_reason: nil) }
+      context "doesn't have a store credit reason" do
+        let(:event) { build(:store_credit_invalidate_event, store_credit_reason: nil) }
 
         it "returns false" do
           expect(subject).to eq false
         end
 
-        it "adds an error message indicating the update reason is missing" do
+        it "adds an error message indicating the store credit reason is missing" do
           subject
-          expect(event.errors.full_messages).to match ["Update reason can't be blank"]
+          expect(event.errors.full_messages).to match ["Store credit reason can't be blank"]
         end
       end
     end
 
-    context "event doesn't require an update reason" do
+    context "event doesn't require a store credit reason" do
       let(:event) { build(:store_credit_auth_event) }
 
       it "returns true" do
@@ -218,8 +220,22 @@ describe Spree::StoreCreditEvent do
     end
   end
 
+  describe "#display_remaining_amount" do
+    let(:amount_remaining) { 300.0 }
+
+    subject { create(:store_credit_auth_event, amount_remaining: amount_remaining) }
+
+    it "returns a Spree::Money instance" do
+      expect(subject.display_remaining_amount).to be_instance_of(Spree::Money)
+    end
+
+    it "uses the events amount_remaining attribute" do
+      expect(subject.display_remaining_amount).to eq Spree::Money.new(amount_remaining, { currency: subject.currency })
+    end
+  end
+
   describe "#display_event_date" do
-    let(:date) { DateTime.new(2014, 06, 1) }
+    let(:date) { Time.zone.parse("2014-06-01") }
 
     subject { create(:store_credit_auth_event, created_at: date) }
 

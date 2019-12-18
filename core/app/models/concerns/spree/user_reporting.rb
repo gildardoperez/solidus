@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module UserReporting
     extend DisplayMoney
@@ -8,7 +10,7 @@ module Spree
     end
 
     def order_count
-      BigDecimal(spree_orders.complete.count)
+      spree_orders.complete.count
     end
 
     def average_order_value

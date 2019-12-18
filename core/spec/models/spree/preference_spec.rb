@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Preference, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Preference, type: :model do
   it "should require a key" do
     @preference = Spree::Preference.new
     @preference.key = :test
@@ -10,12 +12,12 @@ describe Spree::Preference, type: :model do
 
   describe "type coversion for values" do
     def round_trip_preference(key, value)
-      p = Spree::Preference.new
-      p.value = value
-      p.key = key
-      p.save
+      element = Spree::Preference.new
+      element.value = value
+      element.key = key
+      element.save
 
-      Spree::Preference.find_by_key(key)
+      Spree::Preference.find_by(key: key)
     end
 
     it ":boolean" do

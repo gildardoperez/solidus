@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe "Checkout", type: :feature, inaccessible: true do
@@ -75,15 +77,169 @@ describe "Checkout", type: :feature, inaccessible: true do
     end
   end
 
+  context "displays default user addresses on address step" do
+    before do
+      stock_location.stock_items.update_all(count_on_hand: 1)
+    end
+
+    context "when user is logged in" do
+      let!(:user) do
+        create(:user, bill_address: saved_bill_address, ship_address: saved_ship_address)
+      end
+
+      let!(:order) do
+        order = Spree::Order.create!(
+          email: "spree@example.com",
+          store: Spree::Store.first || FactoryBot.create(:store)
+        )
+
+        order.reload
+        order.user = user
+        order.recalculate
+        order
+      end
+
+      before do
+        allow_any_instance_of(Spree::CheckoutController).to receive_messages(current_order: order)
+        allow_any_instance_of(Spree::CheckoutController).to receive_messages(try_spree_current_user: user)
+        allow_any_instance_of(Spree::OrdersController).to receive_messages(try_spree_current_user: user)
+
+        add_mug_to_cart
+        click_button "Checkout"
+        # We need an order reload here to get newly associated addresses.
+        # Then we go back to address where we are supposed to be redirected.
+        order.reload
+        visit spree.checkout_state_path(:address)
+      end
+
+      context "when user has default addresses saved" do
+        let(:saved_bill_address) { create(:address, firstname: 'Bill') }
+        let(:saved_ship_address) { create(:address, firstname: 'Steve') }
+
+        it "shows the saved addresses" do
+          within("#billing") do
+            expect(find_field('First Name').value).to eq 'Bill'
+          end
+
+          within("#shipping") do
+            expect(find_field('First Name').value).to eq 'Steve'
+          end
+        end
+      end
+
+      context "when user does not have default addresses saved" do
+        let(:saved_bill_address) { nil }
+        let(:saved_ship_address) { nil }
+
+        it 'shows an empty address' do
+          within("#billing") do
+            expect(find_field('First Name').value).to be_nil
+          end
+
+          within("#shipping") do
+            expect(find_field('First Name').value).to be_nil
+          end
+        end
+      end
+    end
+
+    context "when user is not logged in" do
+      context "and proceeds with guest checkout" do
+        it 'shows empty addresses' do
+          add_mug_to_cart
+          click_button "Checkout"
+
+          within("#billing") do
+            expect(find_field('First Name').value).to be_nil
+          end
+
+          within("#shipping") do
+            expect(find_field('First Name').value).to be_nil
+          end
+        end
+      end
+
+      context "and proceeds logging in" do
+        let!(:user) do
+          create(:user, bill_address: saved_bill_address, ship_address: saved_ship_address)
+        end
+
+        before do
+          add_mug_to_cart
+          click_button "Checkout"
+
+          # Simulate user login
+          Spree::Order.last.associate_user!(user)
+          allow_any_instance_of(Spree::CheckoutController).to receive_messages(try_spree_current_user: user)
+          allow_any_instance_of(Spree::OrdersController).to receive_messages(try_spree_current_user: user)
+
+          # Simulate redirect back to address after login
+          visit spree.checkout_state_path(:address)
+        end
+
+        context "when does not have saved addresses" do
+          let(:saved_bill_address) { nil }
+          let(:saved_ship_address) { nil }
+
+          it 'shows empty addresses' do
+            within("#billing") do
+              expect(find_field('First Name').value).to be_nil
+            end
+
+            within("#shipping") do
+              expect(find_field('First Name').value).to be_nil
+            end
+          end
+        end
+
+        # Regression test for https://github.com/solidusio/solidus/issues/1811
+        context "when does have saved addresses" do
+          let(:saved_bill_address) { create(:address, firstname: 'Bill') }
+          let(:saved_ship_address) { create(:address, firstname: 'Steve') }
+
+          it 'shows empty addresses' do
+            within("#billing") do
+              expect(find_field('First Name').value).to eq 'Bill'
+            end
+
+            within("#shipping") do
+              expect(find_field('First Name').value).to eq 'Steve'
+            end
+          end
+        end
+      end
+    end
+  end
+
+  context "when order has only a void payment" do
+    let(:order) { Spree::TestingSupport::OrderWalkthrough.up_to(:payment) }
+
+    before do
+      user = create(:user)
+      order.user = user
+      order.recalculate
+
+      allow_any_instance_of(Spree::CheckoutController).to receive_messages(current_order: order)
+      allow_any_instance_of(Spree::CheckoutController).to receive_messages(try_spree_current_user: user)
+    end
+
+    it "does not allow successful order submission" do
+      visit spree.checkout_path
+      order.payments.first.update state: :void
+      click_button 'Place Order'
+      expect(page).to have_current_path spree.checkout_state_path(:payment)
+    end
+  end
+
   # Regression test for https://github.com/spree/spree/issues/2694 and https://github.com/spree/spree/issues/4117
   context "doesn't allow bad credit card numbers" do
+    let!(:payment_method) { create(:credit_card_payment_method) }
     before(:each) do
-      order = OrderWalkthrough.up_to(:delivery)
-      allow(order).to receive_messages(available_payment_methods: [create(:credit_card_payment_method)])
+      order = Spree::TestingSupport::OrderWalkthrough.up_to(:delivery)
 
       user = create(:user)
       order.user = user
-      order.update!
+      order.recalculate
 
       allow_any_instance_of(Spree::CheckoutController).to receive_messages(current_order: order)
       allow_any_instance_of(Spree::CheckoutController).to receive_messages(try_spree_current_user: user)
@@ -107,11 +263,11 @@ describe "Checkout", type: :feature, inaccessible: true do
     let!(:user) { create(:user) }
 
     let!(:order) do
-      order = OrderWalkthrough.up_to(:delivery)
+      order = Spree::TestingSupport::OrderWalkthrough.up_to(:delivery)
 
       order.reload
       order.user = user
-      order.update!
+      order.recalculate
       order
     end
 
@@ -155,10 +311,10 @@ describe "Checkout", type: :feature, inaccessible: true do
 
     before do
       Capybara.ignore_hidden_elements = false
-      order = OrderWalkthrough.up_to(:delivery)
+      order = Spree::TestingSupport::OrderWalkthrough.up_to(:delivery)
       allow(order).to receive_messages(available_payment_methods: [check_payment, credit_cart_payment])
       order.user = create(:user)
-      order.update!
+      order.recalculate
 
       allow_any_instance_of(Spree::CheckoutController).to receive_messages(current_order: order)
       allow_any_instance_of(Spree::CheckoutController).to receive_messages(try_spree_current_user: order.user)
@@ -180,7 +336,8 @@ describe "Checkout", type: :feature, inaccessible: true do
   end
 
   context "user has payment sources", js: true do
-    let(:bogus) { create(:credit_card_payment_method) }
+    before { Spree::PaymentMethod.all.each(&:really_destroy!) }
+    let!(:bogus) { create(:credit_card_payment_method) }
     let(:user) { create(:user) }
 
     let!(:credit_card) do
@@ -189,8 +346,7 @@ describe "Checkout", type: :feature, inaccessible: true do
 
     before do
       user.wallet.add(credit_card)
-      order = OrderWalkthrough.up_to(:delivery)
-      allow(order).to receive_messages(available_payment_methods: [bogus])
+      order = Spree::TestingSupport::OrderWalkthrough.up_to(:delivery)
 
       allow_any_instance_of(Spree::CheckoutController).to receive_messages(current_order: order)
       allow_any_instance_of(Spree::CheckoutController).to receive_messages(try_spree_current_user: user)
@@ -202,36 +358,27 @@ describe "Checkout", type: :feature, inaccessible: true do
     it "selects first source available and customer moves on" do
       expect(find("#use_existing_card_yes")).to be_checked
 
-      expect {
-        click_on "Save and Continue"
-      }.not_to change { Spree::CreditCard.count }
-
+      click_on "Save and Continue"
       click_on "Place Order"
       expect(page).to have_current_path(spree.order_path(Spree::Order.last))
+      expect(page).to have_current_path(spree.order_path(Spree::Order.last))
+      expect(page).to have_content("Ending in #{credit_card.last_digits}")
     end
 
     it "allows user to enter a new source" do
       choose "use_existing_card_no"
+      fill_in_credit_card
 
-      fill_in "Name on card", with: 'Spree Commerce'
-      fill_in "Card Number", with: '4111111111111111'
-      fill_in "card_expiry", with: '04 / 20'
-      fill_in "Card Code", with: '123'
-
-      expect {
-        click_on "Save and Continue"
-      }.to change { Spree::CreditCard.count }.by 1
-
-      expect(Spree::CreditCard.last.address).to be_present
-
+      click_on "Save and Continue"
       click_on "Place Order"
       expect(page).to have_current_path(spree.order_path(Spree::Order.last))
+      expect(page).to have_content('Ending in 1111')
     end
   end
 
   # regression for https://github.com/spree/spree/issues/2921
   context "goes back from payment to add another item", js: true do
-    let!(:store) { FactoryGirl.create(:store) }
+    let!(:store) { FactoryBot.create(:store) }
     let!(:bag) { create(:product, name: "RoR Bag") }
 
     it "transit nicely through checkout steps again" do
@@ -350,7 +497,7 @@ describe "Checkout", type: :feature, inaccessible: true do
         fill_in "Coupon Code", with: 'invalid'
         click_on "Apply Code"
 
-        expect(page).to have_content(Spree.t(:coupon_code_not_found))
+        expect(page).to have_content(I18n.t('spree.coupon_code_not_found'))
       end
     end
 
@@ -362,7 +509,7 @@ describe "Checkout", type: :feature, inaccessible: true do
     end
   end
 
-  context "order has only payment step" do
+  context "order has only payment step", js: true do
     before do
       create(:credit_card_payment_method)
       @old_checkout_flow = Spree::Order.checkout_flow
@@ -387,10 +534,7 @@ describe "Checkout", type: :feature, inaccessible: true do
       expect(page).to have_current_path(spree.checkout_state_path('payment'))
 
       choose "Credit Card"
-      fill_in "Name on card", with: 'Spree Commerce'
-      fill_in "Card Number", with: '4111111111111111'
-      fill_in "card_expiry", with: '04 / 20'
-      fill_in "Card Code", with: '123'
+      fill_in_credit_card
       click_button "Save and Continue"
 
       expect(current_path).to eq spree.checkout_state_path('confirm')
@@ -432,7 +576,7 @@ describe "Checkout", type: :feature, inaccessible: true do
 
   context "when order is completed" do
     let!(:user) { create(:user) }
-    let!(:order) { OrderWalkthrough.up_to(:delivery) }
+    let!(:order) { Spree::TestingSupport::OrderWalkthrough.up_to(:delivery) }
 
     before(:each) do
       allow_any_instance_of(Spree::CheckoutController).to receive_messages(current_order: order)
@@ -446,12 +590,12 @@ describe "Checkout", type: :feature, inaccessible: true do
     end
 
     it "displays a thank you message" do
-      expect(page).to have_content(Spree.t(:thank_you_for_your_order))
+      expect(page).to have_content(I18n.t('spree.thank_you_for_your_order'), normalize_ws: true)
     end
 
     it "does not display a thank you message on that order future visits" do
       visit spree.order_path(order)
-      expect(page).to_not have_content(Spree.t(:thank_you_for_your_order))
+      expect(page).to_not have_content(I18n.t('spree.thank_you_for_your_order'))
     end
   end
 
@@ -473,6 +617,7 @@ describe "Checkout", type: :feature, inaccessible: true do
         state_name_css = "order_bill_address_attributes_state_name"
 
         select "Canada", from: "order_bill_address_attributes_country_id"
+        fill_in 'Customer E-Mail', with: 'test@example.com'
         fill_in state_name_css, with: xss_string
         fill_in "Zip", with: "H0H0H0"
 
@@ -520,16 +665,68 @@ describe "Checkout", type: :feature, inaccessible: true do
       click_on "Save and Continue"
       click_on "Save and Continue"
 
-      fill_in_credit_card(number: "4111111111111111")
+      fill_in_credit_card
       click_on "Save and Continue"
 
       expect(page).to have_current_path("/checkout/confirm")
     end
   end
 
-  def fill_in_credit_card(number:)
-    fill_in "Card Number", with: number
-    fill_in "Expiration", with: "1224"
+  # Regression test for: https://github.com/solidusio/solidus/issues/2998
+  context 'when two shipping categories are available' do
+    let!(:first_category) { create(:shipping_category) }
+    let!(:second_category) { create(:shipping_category) }
+
+    let!(:first_shipping_method) do
+      create(:shipping_method,
+             shipping_categories: [first_category],
+             stores: [store])
+    end
+
+    let!(:second_shipping_method) do
+      create(:shipping_method,
+             shipping_categories: [second_category],
+             stores: [store])
+    end
+
+    context 'assigned to two different products' do
+      let!(:first_product) do
+        create(:product,
+               name: 'First product',
+               shipping_category: first_category)
+      end
+
+      let!(:second_product) do
+        create(:product,
+               name: 'Second product',
+               shipping_category: second_category)
+      end
+
+      before do
+        stock_location.stock_items.update_all(count_on_hand: 10)
+      end
+
+      it 'transitions successfully to the delivery step', js: true do
+        visit spree.product_path(first_product)
+        click_button 'add-to-cart-button'
+        visit spree.product_path(second_product)
+        click_button 'add-to-cart-button'
+
+        click_button 'Checkout'
+
+        fill_in_address
+        fill_in 'order_email', with: 'test@example.com'
+        click_button 'Save and Continue'
+
+        expect(Spree::Order.last.state).to eq('delivery')
+      end
+    end
+  end
+
+  def fill_in_credit_card(number: "4111 1111 1111 1111")
+    fill_in "Name on card", with: 'Mary Doe'
+    fill_in_with_force "Card Number", with: number
+    fill_in_with_force "Expiration", with: "12 / 24"
     fill_in "Card Code", with: "123"
   end
 

@@ -1,7 +1,10 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::ReturnItem::EligibilityValidator::OrderCompleted do
-  let(:inventory_unit) { create(:inventory_unit, order: order) }
+require 'rails_helper'
+
+RSpec.describe Spree::ReturnItem::EligibilityValidator::OrderCompleted do
+  let(:shipment)       { create(:shipment, order: order) }
+  let(:inventory_unit) { create(:inventory_unit, shipment: shipment) }
   let(:return_item)    { create(:return_item, inventory_unit: inventory_unit) }
   let(:validator)      { Spree::ReturnItem::EligibilityValidator::OrderCompleted.new(return_item) }
 
@@ -25,7 +28,7 @@ describe Spree::ReturnItem::EligibilityValidator::OrderCompleted do
 
       it "sets an error" do
         subject
-        expect(validator.errors[:order_not_completed]).to eq Spree.t('return_item_order_not_completed')
+        expect(validator.errors[:order_not_completed]).to eq I18n.t('spree.return_item_order_not_completed')
       end
     end
   end

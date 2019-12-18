@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe 'solidus:migrations:migrate_shipping_rate_taxes' do
+require 'rails_helper'
+
+RSpec.describe 'solidus:migrations:migrate_shipping_rate_taxes' do
   describe 'up' do
     include_context(
       'rake',
@@ -9,9 +11,11 @@ describe 'solidus:migrations:migrate_shipping_rate_taxes' do
     )
 
     it 'runs' do
-      expect { task.invoke }.to output(
-        "Adding persisted tax notes to historic shipping rates ... Success.\n"
-      ).to_stdout
+      Spree::Deprecation.silence do
+        expect { task.invoke }.to output(
+          "Adding persisted tax notes to historic shipping rates ... Success.\n"
+        ).to_stdout
+      end
     end
   end
 end

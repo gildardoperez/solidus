@@ -1,4 +1,6 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 require 'spree/testing_support/factories/shipping_method_factory'
 
 RSpec.describe 'shipping method factory' do
@@ -12,6 +14,15 @@ RSpec.describe 'shipping method factory' do
     it "should set calculable correctly" do
       shipping_method = create(factory)
       expect(shipping_method.calculator.calculable).to eq(shipping_method)
+    end
+
+    context 'store using alternate currency' do
+      before { stub_spree_preferences(currency: 'CAD') }
+
+      it "should configure the calculator correctly" do
+        shipping_method = create(factory)
+        expect(shipping_method.calculator.preferences[:currency]).to eq('CAD')
+      end
     end
   end
 

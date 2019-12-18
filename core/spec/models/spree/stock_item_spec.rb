@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::StockItem, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::StockItem, type: :model do
   let(:stock_location) { create(:stock_location_with_items) }
 
   subject { stock_location.stock_items.order(:id).first }
@@ -149,12 +151,12 @@ describe Spree::StockItem, type: :model do
     before { Spree::StockMovement.create(stock_item: subject, quantity: 1) }
 
     it "doesnt raise ReadOnlyRecord error" do
-      subject.destroy
+      subject.discard
     end
   end
 
   context "destroyed" do
-    before { subject.destroy }
+    before { subject.discard }
 
     it "recreates stock item just fine" do
       stock_location.stock_items.create!(variant: subject.variant)
@@ -194,7 +196,7 @@ describe Spree::StockItem, type: :model do
 
     context "inventory_cache_threshold is set" do
       before do
-        Spree::Config.inventory_cache_threshold = inventory_cache_threshold
+        stub_spree_preferences(inventory_cache_threshold: inventory_cache_threshold)
       end
 
       let(:inventory_cache_threshold) { 5 }
@@ -239,7 +241,7 @@ describe Spree::StockItem, type: :model do
 
     context "when deprecated binary_inventory_cache is used" do
       before do
-        Spree::Config.binary_inventory_cache = binary_inventory_cache
+        stub_spree_preferences(binary_inventory_cache: binary_inventory_cache)
         allow(Spree::Deprecation).to receive(:warn)
         subject.set_count_on_hand(9)
       end
@@ -254,6 +256,7 @@ describe Spree::StockItem, type: :model do
 
       context "binary_inventory_cache is set to false" do
         let(:binary_inventory_cache) { false }
+
         it "inventory_cache_threshold remains nil" do
           expect(Spree::Config.inventory_cache_threshold).to be_nil
         end
@@ -277,8 +280,8 @@ describe Spree::StockItem, type: :model do
 
   # Regression test for https://github.com/spree/spree/issues/4651
   context "variant" do
-    it "can be found even if the variant is deleted" do
-      subject.variant.destroy
+    it "can be found even if the variant is soft-deleted" do
+      subject.variant.discard
       expect(subject.reload.variant).not_to be_nil
     end
   end
@@ -293,14 +296,14 @@ describe Spree::StockItem, type: :model do
       shared_examples_for 'valid count_on_hand' do
         it 'has :no errors_on' do
           expect(subject).to be_valid
-          expect(subject.errors_on(:count_on_hand).size).to eq(0)
+          expect(subject.errors[:count_on_hand].size).to eq(0)
         end
       end
 
       shared_examples_for 'invalid count_on_hand' do
         it 'has the correct error on count_on_hand' do
           expect(subject).not_to be_valid
-          expect(subject.error_on(:count_on_hand).size).to eq(1)
+          expect(subject.errors[:count_on_hand].size).to eq(1)
           expect(subject.errors[:count_on_hand]).to include('must be greater than or equal to 0')
         end
       end

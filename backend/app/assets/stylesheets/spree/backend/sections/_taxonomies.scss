@@ -8,53 +8,30 @@
 
   ul {
     min-height: 0.5em;
+    margin-bottom: 1.5em;
   }
 
-  .ui-sortable {
-    margin-bottom: 0.5em;
-  }
-
-  > li {
-    > .sortable-handle {
-      text-indent: 2em;
-
-      * {
-        text-indent: 0;
-      }
-    }
-
-    > .ui-sortable {
-      padding-bottom: 5em;
-    }
-  }
-
-  .sortable-handle ,
-  .sortable-placeholder {
-    border-radius: $border-radius;
-  }
-
-  .sortable-handle {
-    background-color: very-light($color-3);
+  .taxon {
+    background-color: $color-light;
     border: 1px solid $color-border;
+    border-radius: $border-radius;
     color: $body-color;
     font-weight: $font-weight-bold;
+    margin: 5px 0;
     padding: 0.5em;
-    cursor: move;
+
+    &.sortable {
+      cursor: move;
+    }
 
     i {
-      @include margin(null 4px 0 6px);
+      margin-right: 4px;
+      margin-bottom: 0;
+      margin-left: 6px;
     }
 
     .actions a {
       margin-left: 8px;
     }
-  }
-
-  .ui-sortable-over {
-    padding-bottom: 1em;
-  }
-
-  .ui-sortable-handle:first-child {
-    margin-top: 1em;
   }
 }

@@ -1,6 +1,10 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::StoreCredit do
+require 'rails_helper'
+
+RSpec.describe Spree::StoreCredit do
+  include ActiveSupport::Testing::TimeHelpers
+
   let(:currency) { "TEST" }
   let(:store_credit) { build(:store_credit, store_credit_attrs) }
   let(:store_credit_attrs) { {} }
@@ -10,12 +14,16 @@ describe Spree::StoreCredit do
 
     context "amount used is greater than zero" do
       let(:store_credit) { create(:store_credit, amount: 100, amount_used: 1) }
-      subject { store_credit.destroy }
 
-      it 'can not delete the store credit' do
-        subject
-        expect(store_credit.reload).to eq store_credit
-        expect(store_credit.errors[:amount_used]).to include("is greater than zero. Can not delete store credit")
+      describe "#discard" do
+        subject { store_credit.discard }
+
+        it 'can not delete the store credit' do
+          subject
+          expect(store_credit.reload).to eq store_credit
+          expect(store_credit.errors[:amount_used]).to include("is greater than zero. Can not delete store credit")
+          expect(store_credit).not_to be_discarded
+        end
       end
     end
 
@@ -112,7 +120,7 @@ describe Spree::StoreCredit do
       let!(:store_credit) { create(:store_credit) }
       let!(:test_category) { create(:store_credit_category, name: "Testing") }
 
-      subject { store_credit.update_attributes(category: test_category) }
+      subject { store_credit.update(category: test_category) }
 
       it "returns false" do
         expect(subject).to eq false
@@ -162,7 +170,7 @@ describe Spree::StoreCredit do
       context "the authorized amount is defined" do
         let(:authorized_amount) { 15.00 }
 
-        before { store_credit.update_attributes(amount_authorized: authorized_amount) }
+        before { store_credit.update(amount_authorized: authorized_amount) }
 
         it "subtracts the authorized amount from the credited amount" do
           expect(store_credit.amount_remaining).to eq(store_credit.amount - authorized_amount)
@@ -173,7 +181,7 @@ describe Spree::StoreCredit do
     context "the amount_used is defined" do
       let(:amount_used) { 10.0 }
 
-      before { store_credit.update_attributes(amount_used: amount_used) }
+      before { store_credit.update(amount_used: amount_used) }
 
       context "the authorized amount is not defined" do
         it "subtracts the amount used from the credited amount" do
@@ -184,7 +192,7 @@ describe Spree::StoreCredit do
       context "the authorized amount is defined" do
         let(:authorized_amount) { 15.00 }
 
-        before { store_credit.update_attributes(amount_authorized: authorized_amount) }
+        before { store_credit.update(amount_authorized: authorized_amount) }
 
         it "subtracts the amount used and the authorized amount from the credited amount" do
           expect(store_credit.amount_remaining).to eq(store_credit.amount - amount_used - authorized_amount)
@@ -200,7 +208,7 @@ describe Spree::StoreCredit do
       let(:originator) { nil }
 
       context "amount has not been authorized yet" do
-        before { store_credit.update_attributes(amount_authorized: authorization_amount) }
+        before { store_credit.update(amount_authorized: authorization_amount) }
 
         it "returns true" do
           expect(store_credit.authorize(store_credit.amount - authorization_amount, store_credit.currency)).to be_truthy
@@ -226,7 +234,7 @@ describe Spree::StoreCredit do
       context "authorization has already happened" do
         let!(:auth_event) { create(:store_credit_auth_event, store_credit: store_credit) }
 
-        before { store_credit.update_attributes(amount_authorized: store_credit.amount) }
+        before { store_credit.update(amount_authorized: store_credit.amount) }
 
         it "returns true" do
           expect(store_credit.authorize(store_credit.amount, store_credit.currency, action_authorization_code: auth_event.authorization_code)).to be true
@@ -499,7 +507,7 @@ describe Spree::StoreCredit do
       let(:auth_code)       { event_auth_code }
 
       context "credit_to_new_allocation is set" do
-        before { Spree::Config[:credit_to_new_allocation] = true }
+        before { stub_spree_preferences(credit_to_new_allocation: true) }
 
         it "returns true" do
           expect(subject).to be true
@@ -737,7 +745,7 @@ describe Spree::StoreCredit do
       end
     end
 
-    describe "#store_events" do
+    describe "#store_event" do
       context "create" do
         context "user has one store credit" do
           let(:store_credit_amount) { 100.0 }
@@ -755,19 +763,34 @@ describe Spree::StoreCredit do
           it "saves the user's total store credit in the event" do
             expect(subject.store_credit_events.first.user_total_amount).to eq store_credit_amount
           end
+
+          it "saves the user's unused store credit in the event" do
+            expect(subject.store_credit_events.first.amount_remaining).to eq store_credit_amount
+          end
         end
 
         context "user has multiple store credits" do
           let(:store_credit_amount)            { 100.0 }
           let(:additional_store_credit_amount) { 200.0 }
-
           let(:user)                           { create(:user) }
-          let!(:store_credit)                  { create(:store_credit, user: user, amount: store_credit_amount) }
 
-          subject { create(:store_credit, user: user, amount: additional_store_credit_amount) }
+          let!(:store_credits) do
+            [
+              create(:store_credit, user: user, amount: store_credit_amount),
+              create(:store_credit, user: user.reload, amount: additional_store_credit_amount)
+            ]
+          end
+
+          subject { store_credits.flat_map(&:store_credit_events) }
 
           it "saves the user's total store credit in the event" do
-            expect(subject.store_credit_events.first.user_total_amount).to eq(store_credit_amount + additional_store_credit_amount)
+            expect(subject.first.user_total_amount).to eq store_credit_amount
+            expect(subject.last.user_total_amount).to eq(store_credit_amount + additional_store_credit_amount)
+          end
+
+          it "saves the user's unused store credit in the event" do
+            expect(subject.first.amount_remaining).to eq store_credit_amount
+            expect(subject.last.amount_remaining).to eq additional_store_credit_amount
           end
         end
 
@@ -786,14 +809,14 @@ describe Spree::StoreCredit do
 
   describe "#update_amount" do
     let(:invalidation_user) { create(:user) }
-    let(:invalidation_reason) { create(:store_credit_update_reason) }
+    let(:invalidation_reason) { create(:store_credit_reason) }
 
     subject { store_credit.update_amount(amount, invalidation_reason, invalidation_user) }
 
     context "amount is valid" do
       let(:amount) { 10.0 }
 
-      before { store_credit.update_attributes!(amount: 30.0) }
+      before { store_credit.update!(amount: 30.0) }
 
       it "returns true" do
         expect(subject).to eq true
@@ -829,7 +852,7 @@ describe Spree::StoreCredit do
 
   describe "#invalidate" do
     let(:invalidation_user) { create(:user) }
-    let(:invalidation_reason) { create(:store_credit_update_reason) }
+    let(:invalidation_reason) { create(:store_credit_reason) }
 
     before do
       store_credit.save!
@@ -839,7 +862,7 @@ describe Spree::StoreCredit do
 
     it "sets the invalidated_at field to the current time" do
       invalidated_at = 2.minutes.from_now
-      Timecop.freeze(invalidated_at) do
+      travel_to(invalidated_at) do
         subject
         expect(store_credit.invalidated_at).to be_within(1.second).of invalidated_at
       end

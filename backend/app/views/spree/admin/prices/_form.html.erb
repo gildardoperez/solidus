@@ -7,7 +7,7 @@
           <%= f.select :variant_id,
                       @product.variants_including_master.map { |v| [v.descriptive_name, v.id] },
                       {},
-                      class: "select2 fullwidth", disabled: !f.object.new_record? %>
+                      class: "custom-select fullwidth", disabled: !f.object.new_record? %>
         <% end %>
       </div>
 
@@ -15,19 +15,18 @@
         <%= f.field_container :country do %>
           <%= f.label :country %>
           <%= f.field_hint :country %>
-          <%= f.collection_select :country_iso, available_countries, :iso, :name,
+          <%= f.collection_select :country_iso, available_countries(restrict_to_zone: nil), :iso, :name,
                                   {
-                                    include_blank: t(:any_country, scope: [:spree, :admin, :prices]),
-                                    selected: Spree::Config.admin_vat_country_iso
+                                    include_blank: t(:any_country, scope: [:spree, :admin, :prices])
                                   },
-                                  { class: 'select2 fullwidth', disabled: !f.object.new_record? } %>
+                                  { class: 'custom-select fullwidth', disabled: !f.object.new_record? } %>
         <% end %>
       </div>
 
       <div data-hook="admin_product_price_form_amount" class="col-4">
         <%= f.field_container :price do %>
           <%= f.label :price %>
-          <%= render "spree/admin/shared/number_with_currency", f: f, amount_attr: :price, currency_attr: :currency %>
+          <%= render "spree/admin/shared/number_with_currency", f: f, amount_attr: :price, currency_attr: :currency, currency: @price.currency %>
         <% end %>
       </div>
   </div>

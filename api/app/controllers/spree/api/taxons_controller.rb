@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class TaxonsController < Spree::Api::BaseController
@@ -10,7 +12,12 @@ module Spree
           @taxons = Spree::Taxon.accessible_by(current_ability, :read).order(:taxonomy_id, :lft).ransack(params[:q]).result
         end
 
+        unless params[:without_children]
+          @taxons = @taxons.includes(:children)
+        end
+
         @taxons = paginate(@taxons)
+        preload_taxon_parents(@taxons)
         respond_with(@taxons)
       end
 
@@ -23,6 +30,7 @@ module Spree
       end
 
       def jstree
+        Spree::Deprecation.warn("Please don't use `/api/taxonomies/:taxonomy_id/taxons/:taxon_id/jstree` endpoint. It is deprecated and will be removed in the next future.", caller)
         show
       end
 
@@ -48,7 +56,7 @@ module Spree
 
       def update
         authorize! :update, taxon
-        if taxon.update_attributes(taxon_params)
+        if taxon.update(taxon_params)
           respond_with(taxon, status: 200, default_template: :show)
         else
           invalid_resource!(taxon)
@@ -102,6 +110,16 @@ module Spree
         else
           {}
         end
+      end
+
+      def preload_taxon_parents(taxons)
+        parents = Spree::Taxon.none
+
+        taxons.map do |taxon|
+          parents = parents.or(taxon.ancestors)
+        end
+
+        Spree::Taxon.associate_parents(taxons + parents)
       end
     end
   end

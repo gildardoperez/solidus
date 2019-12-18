@@ -1,4 +1,7 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
+require 'spree/preferences/statically_configurable'
 
 module Spree
   RSpec.describe Preferences::StaticallyConfigurable do
@@ -27,8 +30,8 @@ module Spree
     end
 
     subject do
-      klass.new.tap do |o|
-        o.preference_source = preference_source
+      klass.new.tap do |item|
+        item.preference_source = preference_source
       end
     end
 

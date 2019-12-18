@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe Spree::Admin::StoreCreditEventsHelper, type: :helper do
@@ -85,10 +87,10 @@ describe Spree::Admin::StoreCreditEventsHelper, type: :helper do
     end
 
     context "originator is not specifically handled" do
-      let(:originator) { create(:store_credit_update_reason) }
+      let(:originator) { create(:store_credit) }
 
       it "raises an error" do
-        expect { subject }.to raise_error(RuntimeError, "Unexpected originator type Spree::StoreCreditUpdateReason")
+        expect { subject }.to raise_error(RuntimeError, "Unexpected originator type Spree::StoreCredit")
       end
     end
   end

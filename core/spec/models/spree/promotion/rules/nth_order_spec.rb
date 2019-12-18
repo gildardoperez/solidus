@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Promotion::Rules::NthOrder do
+require 'rails_helper'
+
+RSpec.describe Spree::Promotion::Rules::NthOrder do
   describe "#applicable?" do
     subject { described_class.new.applicable?(promotable) }
 
@@ -38,7 +40,7 @@ describe Spree::Promotion::Rules::NthOrder do
       context "when the user has completed orders" do
         before do
           old_order = create :completed_order_with_totals, user: user
-          old_order.update_attributes(completed_at: 1.day.ago)
+          old_order.update(completed_at: 1.day.ago)
         end
 
         context "when this order will be the 'nth' order" do
@@ -47,7 +49,7 @@ describe Spree::Promotion::Rules::NthOrder do
 
         context "when this order is completed and is still the 'nth' order" do
           before do
-            order.update_attributes(completed_at: Time.current)
+            order.update(completed_at: Time.current)
           end
 
           it { is_expected.to be true }

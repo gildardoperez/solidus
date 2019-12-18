@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Admin
     class TaxonsController < Spree::Admin::BaseController
@@ -22,7 +24,7 @@ module Spree
             format.json { render json: @taxon.to_json }
           end
         else
-          flash[:error] = Spree.t('errors.messages.could_not_create_taxon')
+          flash[:error] = t('spree.errors.messages.could_not_create_taxon')
           respond_with(@taxon) do |format|
             format.html { redirect_to @taxonomy ? edit_admin_taxonomy_url(@taxonomy) : admin_taxonomies_url }
           end

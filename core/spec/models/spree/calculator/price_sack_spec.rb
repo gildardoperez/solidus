@@ -1,7 +1,9 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 require 'shared_examples/calculator_shared_examples'
 
-describe Spree::Calculator::PriceSack, type: :model do
+RSpec.describe Spree::Calculator::PriceSack, type: :model do
   let(:calculator) do
     calculator = Spree::Calculator::PriceSack.new
     calculator.preferred_minimal_amount = 5

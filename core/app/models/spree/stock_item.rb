@@ -1,9 +1,17 @@
+# frozen_string_literal: true
+
+require 'discard'
+
 module Spree
   class StockItem < Spree::Base
     acts_as_paranoid
+    include Spree::ParanoiaDeprecations
 
-    belongs_to :stock_location, class_name: 'Spree::StockLocation', inverse_of: :stock_items
-    belongs_to :variant, -> { with_deleted }, class_name: 'Spree::Variant', inverse_of: :stock_items
+    include Discard::Model
+    self.discard_column = :deleted_at
+
+    belongs_to :stock_location, class_name: 'Spree::StockLocation', inverse_of: :stock_items, optional: true
+    belongs_to :variant, -> { with_deleted }, class_name: 'Spree::Variant', inverse_of: :stock_items, optional: true
     has_many :stock_movements, inverse_of: :stock_item
 
     validates :stock_location, :variant, presence: true
@@ -15,7 +23,7 @@ module Spree
     # @return [String] the name of this stock item's variant
     delegate :name, to: :variant, prefix: true
 
-    after_save :conditional_variant_touch, if: :changed?
+    after_save :conditional_variant_touch, if: :saved_changes?
     after_touch { variant.touch }
 
     self.whitelisted_ransackable_attributes = ['count_on_hand', 'stock_location_id']
@@ -103,8 +111,8 @@ module Spree
     def should_touch_variant?
       # the variant_id changes from nil when a new stock location is added
       inventory_cache_threshold &&
-        (count_on_hand_changed? && count_on_hand_change.any? { |c| c < inventory_cache_threshold }) ||
-        variant_id_changed?
+        (saved_change_to_count_on_hand&.any? { |cache| cache < inventory_cache_threshold }) ||
+        saved_change_to_variant_id?
     end
 
     def inventory_cache_threshold

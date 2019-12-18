@@ -1,4 +1,6 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 RSpec.describe Spree::Tax::TaxLocation do
   let(:country) { build_stubbed(:country) }

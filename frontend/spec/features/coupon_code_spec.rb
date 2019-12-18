@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe "Coupon code promotions", type: :feature, js: true do
@@ -9,7 +11,7 @@ describe "Coupon code promotions", type: :feature, js: true do
   let!(:payment_method) { create(:check_payment_method) }
   let!(:product) { create(:product, name: "RoR Mug", price: 20) }
 
-  context "visitor makes checkout as guest without registration" do
+  context "visitor makes checkout" do
     def create_basic_coupon_promotion(code)
       promotion = create(
         :promotion,
@@ -32,49 +34,89 @@ describe "Coupon code promotions", type: :feature, js: true do
 
     let!(:promotion) { create_basic_coupon_promotion("onetwo") }
 
-    # OrdersController
     context "on the payment page" do
-      before do
-        visit spree.root_path
-        click_link "RoR Mug"
-        click_button "add-to-cart-button"
-        click_button "Checkout"
-        fill_in "order_email", with: "spree@example.com"
-        fill_in "First Name", with: "John"
-        fill_in "Last Name", with: "Smith"
-        fill_in "Street Address", with: "1 John Street"
-        fill_in "City", with: "City of John"
-        fill_in "Zip", with: "01337"
-        select country.name, from: "Country"
-        select state.name, from: "order[bill_address_attributes][state_id]"
-        fill_in "Phone", with: "555-555-5555"
+      context "as guest without registration" do
+        before do
+          visit spree.root_path
+          click_link "RoR Mug"
+          click_button "add-to-cart-button"
+          click_button "Checkout"
+          fill_in "order_email", with: "spree@example.com"
+          fill_in "First Name", with: "John"
+          fill_in "Last Name", with: "Smith"
+          fill_in "Street Address", with: "1 John Street"
+          fill_in "City", with: "City of John"
+          fill_in "Zip", with: "01337"
+          select country.name, from: "Country"
+          select state.name, from: "order[bill_address_attributes][state_id]"
+          fill_in "Phone", with: "555-555-5555"
 
-        # To shipping method screen
-        click_button "Save and Continue"
-        # To payment screen
-        click_button "Save and Continue"
-      end
-
-      it "informs about an invalid coupon code" do
-        fill_in "order_coupon_code", with: "coupon_codes_rule_man"
-        click_button "Save and Continue"
-        expect(page).to have_content(Spree.t(:coupon_code_not_found))
-      end
-
-      it "can enter an invalid coupon code, then a real one" do
-        fill_in "order_coupon_code", with: "coupon_codes_rule_man"
-        click_button "Save and Continue"
-        expect(page).to have_content(Spree.t(:coupon_code_not_found))
-        fill_in "order_coupon_code", with: "onetwo"
-        click_button "Save and Continue"
-        expect(page).to have_content("Promotion (Onetwo)   -$10.00")
-      end
-
-      context "with a promotion" do
-        it "applies a promotion to an order" do
-          fill_in "order_coupon_code", with: "onetwo"
+          # To shipping method screen
           click_button "Save and Continue"
-          expect(page).to have_content("Promotion (Onetwo)   -$10.00")
+          # To payment screen
+          click_button "Save and Continue"
+        end
+
+        it "informs about an invalid coupon code" do
+          fill_in "order_coupon_code", with: "coupon_codes_rule_man"
+          click_button "Apply Code"
+          expect(page).to have_content(I18n.t('spree.coupon_code_not_found'))
+        end
+
+        it "can enter an invalid coupon code, then a real one" do
+          fill_in "order_coupon_code", with: "coupon_codes_rule_man"
+          click_button "Apply Code"
+          expect(page).to have_content(I18n.t('spree.coupon_code_not_found'))
+          fill_in "order_coupon_code", with: "onetwo"
+          click_button "Apply Code"
+          expect(page).to have_content("Promotion (Onetwo) -$10.00", normalize_ws: true)
+        end
+
+        context "with a promotion" do
+          it "applies a promotion to an order" do
+            fill_in "order_coupon_code", with: "onetwo"
+            click_button "Apply Code"
+            expect(page).to have_content("Promotion (Onetwo) -$10.00", normalize_ws: true)
+          end
+        end
+      end
+
+      context 'as logged user' do
+        let!(:user) { create(:user, bill_address: create(:address), ship_address: create(:address)) }
+
+        before do
+          allow_any_instance_of(Spree::CheckoutController).to receive_messages(try_spree_current_user: user)
+          allow_any_instance_of(Spree::OrdersController).to receive_messages(try_spree_current_user: user)
+        end
+
+        context 'with saved credit card' do
+          let(:bogus) { create(:credit_card_payment_method) }
+          let!(:credit_card) do
+            create(:credit_card, user_id: user.id, payment_method: bogus, gateway_customer_profile_id: "BGS-WEFWF")
+          end
+
+          before do
+            user.wallet.add(credit_card)
+
+            visit spree.root_path
+            click_link "RoR Mug"
+            click_button "add-to-cart-button"
+            # To Cart
+            click_button "Checkout"
+            # To shipping method screen, address is auto-populated
+            # with user's saved addresses
+            click_button "Save and Continue"
+            # To payment screen
+            click_button "Save and Continue"
+          end
+
+          it "shows wallet payments on coupon code errors" do
+            fill_in "order_coupon_code", with: "coupon_codes_rule_man"
+            click_button "Apply Code"
+
+            expect(page).to have_content("The coupon code you entered doesn't exist. Please try again.")
+            expect(page).to have_content("Use an existing card")
+          end
         end
       end
     end
@@ -88,23 +130,23 @@ describe "Coupon code promotions", type: :feature, js: true do
       end
 
       it "can enter a coupon code and receives success notification" do
-        fill_in "order_coupon_code", with: "onetwo"
-        click_button "Update"
-        expect(page).to have_content(Spree.t(:coupon_code_applied))
+        fill_in "coupon_code", with: "onetwo"
+        click_button "Apply Code"
+        expect(page).to have_content(I18n.t('spree.coupon_code_applied'))
       end
 
       it "can enter a promotion code with both upper and lower case letters" do
-        fill_in "order_coupon_code", with: "ONETwO"
-        click_button "Update"
-        expect(page).to have_content(Spree.t(:coupon_code_applied))
+        fill_in "coupon_code", with: "ONETwO"
+        click_button "Apply Code"
+        expect(page).to have_content(I18n.t('spree.coupon_code_applied'))
       end
 
       it "informs the user about a coupon code which has exceeded its usage" do
         expect_any_instance_of(Spree::Promotion).to receive(:usage_limit_exceeded?).and_return(true)
 
-        fill_in "order_coupon_code", with: "onetwo"
-        click_button "Update"
-        expect(page).to have_content(Spree.t(:coupon_code_max_usage))
+        fill_in "coupon_code", with: "onetwo"
+        click_button "Apply Code"
+        expect(page).to have_content(I18n.t('spree.coupon_code_max_usage'))
       end
 
       context "informs the user if the coupon code is not eligible" do
@@ -118,9 +160,9 @@ describe "Coupon code promotions", type: :feature, js: true do
         specify do
           visit spree.cart_path
 
-          fill_in "order_coupon_code", with: "onetwo"
-          click_button "Update"
-          expect(page).to have_content(Spree.t(:item_total_less_than_or_equal, scope: [:eligibility_errors, :messages], amount: "$100.00"))
+          fill_in "coupon_code", with: "onetwo"
+          click_button "Apply Code"
+          expect(page).to have_content(I18n.t(:item_total_less_than_or_equal, scope: [:spree, :eligibility_errors, :messages], amount: "$100.00"))
         end
       end
 
@@ -128,9 +170,9 @@ describe "Coupon code promotions", type: :feature, js: true do
         promotion.expires_at = Date.today.beginning_of_week
         promotion.starts_at = Date.today.beginning_of_week.advance(day: 3)
         promotion.save!
-        fill_in "order_coupon_code", with: "onetwo"
-        click_button "Update"
-        expect(page).to have_content(Spree.t(:coupon_code_expired))
+        fill_in "coupon_code", with: "onetwo"
+        click_button "Apply Code"
+        expect(page).to have_content(I18n.t('spree.coupon_code_expired'))
       end
 
       context "calculates the correct amount of money saved with flat percent promotions" do
@@ -149,8 +191,8 @@ describe "Coupon code promotions", type: :feature, js: true do
           click_button "add-to-cart-button"
 
           visit spree.cart_path
-          fill_in "order_coupon_code", with: "onetwo"
-          click_button "Update"
+          fill_in "coupon_code", with: "onetwo"
+          click_button "Apply Code"
 
           fill_in "order_line_items_attributes_0_quantity", with: 2
           fill_in "order_line_items_attributes_1_quantity", with: 2
@@ -160,7 +202,7 @@ describe "Coupon code promotions", type: :feature, js: true do
             # 20% of $40 = 8
             # 20% of $20 = 4
             # Therefore: promotion discount amount is $12.
-            expect(page).to have_content("Promotion (Onetwo) -$12.00")
+            expect(page).to have_content("Promotion (Onetwo) -$12.00", normalize_ws: true)
           end
 
           within '.cart-total' do
@@ -174,13 +216,12 @@ describe "Coupon code promotions", type: :feature, js: true do
           calculator = Spree::Calculator::FlatPercentItemTotal.new
           calculator.preferred_flat_percent = 100
 
-          action = Spree::Promotion::Actions::CreateAdjustment.new
-          action.calculator = calculator
-          action.promotion = promotion
-          action.save
+          promotion.promotion_actions.first.discard
 
-          promotion.promotion_actions = [action]
-          promotion.save
+          Spree::Promotion::Actions::CreateAdjustment.create!(
+            calculator: calculator,
+            promotion: promotion
+          )
 
           create(:product, name: "Spree Mug", price: 10)
         end
@@ -196,11 +237,11 @@ describe "Coupon code promotions", type: :feature, js: true do
             expect(page).to have_content("$30.00")
           end
 
-          fill_in "order_coupon_code", with: "onetwo"
-          click_button "Update"
+          fill_in "coupon_code", with: "onetwo"
+          click_button "Apply Code"
 
           within '#cart_adjustments' do
-            expect(page).to have_content("Promotion (Onetwo) -$30.00")
+            expect(page).to have_content("Promotion (Onetwo) -$30.00", normalize_ws: true)
           end
 
           within '.cart-total' do
@@ -212,7 +253,7 @@ describe "Coupon code promotions", type: :feature, js: true do
           click_button "Update"
 
           within '#cart_adjustments' do
-            expect(page).to have_content("Promotion (Onetwo) -$60.00")
+            expect(page).to have_content("Promotion (Onetwo) -$60.00", normalize_ws: true)
           end
 
           within '.cart-total' do

@@ -18,7 +18,6 @@ div[data-hook="admin_products_index_search_buttons"] {
   }
   input[type="checkbox"] {
     width: auto;
-    vertical-align: bottom;
   }
 }
 
@@ -32,7 +31,9 @@ div[data-hook="admin_products_index_search_buttons"] {
   margin-bottom: 15px;
 
   strong {
-    color: $color-2;
+    background: $color-primary-light;
+    padding: .1em .3em;
+    border-radius: 3px;
   }
 }
 
@@ -48,11 +49,15 @@ div[data-hook="admin_products_index_search_buttons"] {
   }
 
   &.with-images {
-    border-color: $brand-success;
+    border-color: theme-color("success");
   }
 }
 
 .progress-card {
   height: 100%;
   padding: 1rem;
+}
+
+.modal-image-trigger {
+  cursor: zoom-in;
 }

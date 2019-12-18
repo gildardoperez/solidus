@@ -1,9 +1,9 @@
+# frozen_string_literal: true
+
 module Spree
   module Stock
     module Splitter
       class Weight < Spree::Stock::Splitter::Base
-        attr_reader :packer, :next_splitter
-
         cattr_accessor :threshold do
           150
         end

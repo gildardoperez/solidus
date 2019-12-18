@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class StoresController < Spree::Api::BaseController
@@ -22,7 +24,7 @@ module Spree
 
       def update
         authorize! :update, @store
-        if @store.update_attributes(store_params)
+        if @store.update(store_params)
           respond_with(@store, status: 200, default_template: :show)
         else
           invalid_resource!(@store)

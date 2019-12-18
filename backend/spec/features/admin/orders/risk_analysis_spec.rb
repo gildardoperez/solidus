@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe 'Order Risk Analysis', type: :feature do
@@ -28,10 +30,10 @@ describe 'Order Risk Analysis', type: :feature do
     end
 
     it "can be approved" do
-      click_button('approve')
+      click_button('Approve')
       expect(page).to have_content 'Approver'
       expect(page).to have_content 'Approved at'
-      expect(page).to have_content 'Status: complete'
+      expect(page).to have_content 'Status: Complete'
     end
   end
 

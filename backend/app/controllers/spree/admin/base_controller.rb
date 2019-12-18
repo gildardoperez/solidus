@@ -1,13 +1,20 @@
+# frozen_string_literal: true
+
 module Spree
   module Admin
     class BaseController < Spree::BaseController
       helper 'spree/admin/navigation'
-      helper 'spree/admin/tables'
-      layout '/spree/layouts/admin'
+      layout 'spree/layouts/admin'
 
       before_action :authorize_admin
 
       private
+
+      # Overrides ControllerHelpers::Common
+      # We want the admin's locale selection to be different than that on the frontend
+      def set_user_language_locale_key
+        :admin_locale
+      end
 
       def action
         params[:action].to_sym
@@ -34,7 +41,7 @@ module Spree
       def flash_message_for(object, event_sym)
         resource_desc  = object.class.model_name.human
         resource_desc += " \"#{object.name}\"" if object.respond_to?(:name) && object.name.present?
-        Spree.t(event_sym, resource: resource_desc)
+        t(event_sym, resource: resource_desc, scope: 'spree')
       end
 
       def render_js_for_destroy
@@ -48,7 +55,7 @@ module Spree
       def lock_order
         Spree::OrderMutex.with_lock!(@order) { yield }
       rescue Spree::OrderMutex::LockFailed
-        flash[:error] = Spree.t(:order_mutex_admin_error)
+        flash[:error] = t('spree.order_mutex_admin_error')
         redirect_to order_mutex_redirect_path
       end
 

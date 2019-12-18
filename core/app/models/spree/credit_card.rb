@@ -1,16 +1,18 @@
+# frozen_string_literal: true
+
 module Spree
   # The default `source` of a `Spree::Payment`.
   #
   class CreditCard < Spree::PaymentSource
-    belongs_to :user, class_name: Spree::UserClassHandle.new, foreign_key: 'user_id'
-    belongs_to :address
+    belongs_to :user, class_name: Spree::UserClassHandle.new, foreign_key: 'user_id', optional: true
+    belongs_to :address, optional: true
 
     before_save :set_last_digits
 
     accepts_nested_attributes_for :address
 
-    attr_reader :number
-    attr_accessor :encrypted_data, :verification_value
+    attr_reader :number, :verification_value
+    attr_accessor :encrypted_data
 
     validates :month, :year, numericality: { only_integer: true }, if: :require_card_numbers?, on: :create
     validates :number, presence: true, if: :require_card_numbers?, on: :create, unless: :imported
@@ -45,13 +47,13 @@ module Spree
     }.freeze
 
     def default
-      Spree::Deprecation.warn("CreditCard.default is deprecated. Please use user.wallet.default_wallet_payment_source instead.", caller)
+      Spree::Deprecation.warn("CreditCard#default is deprecated. Please use user.wallet.default_wallet_payment_source instead.", caller)
       return false if user.nil?
       user.wallet.default_wallet_payment_source.try!(:payment_source) == self
     end
 
     def default=(set_as_default)
-      Spree::Deprecation.warn("CreditCard.default= is deprecated. Please use user.wallet.default_wallet_payment_source= instead.", caller)
+      Spree::Deprecation.warn("CreditCard#default= is deprecated. Please use user.wallet.default_wallet_payment_source= instead.", caller)
       if user.nil?
         raise "Cannot set 'default' on a credit card without a user"
       elsif set_as_default # setting this card as default

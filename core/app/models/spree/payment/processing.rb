@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   class Payment < Spree::Base
     module Processing
@@ -57,7 +59,7 @@ module Spree
           )
           money = ::Money.new(amount, currency)
           capture_events.create!(amount: money.to_d)
-          update_attributes!(amount: captured_amount)
+          update!(amount: captured_amount)
           handle_response(response, :complete, :failure)
         end
       end
@@ -79,8 +81,7 @@ module Spree
       end
 
       def cancel!
-        response = payment_method.cancel(response_code)
-        handle_void_response(response)
+        Spree::Config.payment_canceller.cancel(self)
       end
 
       def gateway_options
@@ -144,11 +145,11 @@ module Spree
               yield
             else
               invalidate!
-              raise Core::GatewayError.new(Spree.t(:payment_method_not_supported))
+              raise Core::GatewayError.new(I18n.t('spree.payment_method_not_supported'))
             end
           end
         else
-          raise Core::GatewayError.new(Spree.t(:payment_processing_failed))
+          raise Core::GatewayError.new(I18n.t('spree.payment_processing_failed'))
         end
       end
 
@@ -198,19 +199,19 @@ module Spree
 
       def protect_from_connection_error
           yield
-      rescue ActiveMerchant::ConnectionError => e
-          gateway_error(e)
+      rescue ActiveMerchant::ConnectionError => error
+          gateway_error(error)
       end
 
       def gateway_error(error)
         if error.is_a? ActiveMerchant::Billing::Response
           text = error.params['message'] || error.params['response_reason_text'] || error.message
         elsif error.is_a? ActiveMerchant::ConnectionError
-          text = Spree.t(:unable_to_connect_to_gateway)
+          text = I18n.t('spree.unable_to_connect_to_gateway')
         else
           text = error.to_s
         end
-        logger.error(Spree.t(:gateway_error))
+        logger.error(I18n.t('spree.gateway_error'))
         logger.error("  #{error.to_yaml}")
         raise Core::GatewayError.new(text)
       end

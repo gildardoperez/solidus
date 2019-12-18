@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::PromotionCategory, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::PromotionCategory, type: :model do
   describe 'validation' do
     let(:name) { 'Nom' }
     subject { Spree::PromotionCategory.new name: name }

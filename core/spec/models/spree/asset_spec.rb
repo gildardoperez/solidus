@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Asset, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Asset, type: :model do
   describe "#viewable" do
     it "touches association" do
       product = build(:custom_product)

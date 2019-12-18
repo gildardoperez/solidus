@@ -1,13 +1,13 @@
-require 'spec_helper'
-require 'email_spec'
+# frozen_string_literal: true
 
-describe Spree::TestMailer, type: :mailer do
-  include EmailSpec::Helpers
-  include EmailSpec::Matchers
+require 'rails_helper'
 
+RSpec.describe Spree::TestMailer, type: :mailer do
   let(:user) { create(:user) }
 
   it "confirm_email accepts a user id as an alternative to a User object" do
-    Spree::TestMailer.test_email('test@example.com')
+    Spree::Deprecation.silence do
+      Spree::TestMailer.test_email('test@example.com')
+    end
   end
 end

@@ -1,4 +1,6 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 require 'spree/testing_support/factories/order_promotion_factory'
 
 RSpec.describe 'order promotion factory' do

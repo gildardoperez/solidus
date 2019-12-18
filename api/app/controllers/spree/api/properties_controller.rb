@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     class PropertiesController < Spree::Api::BaseController
@@ -37,7 +39,7 @@ module Spree
       def update
         if @property
           authorize! :update, @property
-          @property.update_attributes(property_params)
+          @property.update(property_params)
           respond_with(@property, status: 200, default_template: :show)
         else
           invalid_resource!(@property)

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe "Store", type: :feature, js: true do
@@ -38,13 +40,13 @@ describe "Store", type: :feature, js: true do
     end
 
     it "should be able to update the default cart tax country" do
-      expect(page).to have_select('Tax Country for Empty Carts', selected: 'No taxes on carts without address', visible: false)
+      expect(page).to have_select('Tax Country for Empty Carts', selected: 'No taxes on carts without address')
 
-      select "Germany", from: "Tax Country for Empty Carts", visible: false
+      select "Germany", from: "Tax Country for Empty Carts"
       click_button "Update"
 
       expect(page).to have_content("has been successfully updated")
-      expect(page).to have_select("Tax Country for Empty Carts", selected: "Germany", visible: false)
+      expect(page).to have_select("Tax Country for Empty Carts", selected: "Germany")
     end
   end
 

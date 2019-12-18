@@ -1,8 +1,10 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 # Regression tests for https://github.com/spree/spree/issues/2179
 module Spree
-  describe OrderMerger, type: :model do
+  RSpec.describe OrderMerger, type: :model do
     let(:variant) { create(:variant) }
     let!(:store) { create(:store, default: true) }
     let(:order_1) { Spree::Order.create }
@@ -66,7 +68,6 @@ module Spree
     context "merging using extension-specific line_item_comparison_hooks" do
       before do
         Spree::Order.register_line_item_comparison_hook(:foos_match)
-        allow(Spree::Variant).to receive(:price_modifier_amount).and_return(0.00)
       end
 
       after do
@@ -76,12 +77,14 @@ module Spree
 
       context "2 equal line items" do
         before do
-          @line_item_1 = order_1.contents.add(variant, 1, foos: {})
-          @line_item_2 = order_2.contents.add(variant, 1, foos: {})
+          @line_item_one = order_1.contents.add(variant, 1, foos: {})
+          @line_item_two = order_2.contents.add(variant, 1, foos: {})
         end
 
         specify do
-          expect(order_1).to receive(:foos_match).with(@line_item_1, kind_of(Hash)).and_return(true)
+          without_partial_double_verification do
+            expect(order_1).to receive(:foos_match).with(@line_item_one, kind_of(Hash)).and_return(true)
+          end
           subject.merge!(order_2)
           expect(order_1.line_items.count).to eq(1)
 
@@ -93,7 +96,9 @@ module Spree
 
       context "2 different line items" do
         before do
-          allow(order_1).to receive(:foos_match).and_return(false)
+          without_partial_double_verification do
+            allow(order_1).to receive(:foos_match).and_return(false)
+          end
 
           order_1.contents.add(variant, 1, foos: {})
           order_2.contents.add(variant, 1, foos: { bar: :zoo })

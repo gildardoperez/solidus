@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module OrderFeatureHelper
   def add_line_item(product_name, quantity: 1)
     find(".js-add-line-item:not([disabled]), .line-item [name=quantity]").click
@@ -14,7 +16,7 @@ module OrderFeatureHelper
       destination = destination.name
     end
 
-    select2_no_label(destination, from: 'Choose location')
+    select2_no_label(destination, from: 'Choose Location')
 
     if quantity
       fill_in 'item_quantity', with: quantity

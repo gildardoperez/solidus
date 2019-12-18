@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Core::ControllerHelpers::PaymentParameters, type: :controller do
+require 'rails_helper'
+
+RSpec.describe Spree::Core::ControllerHelpers::PaymentParameters, type: :controller do
   controller(ApplicationController) do
     include Spree::Core::ControllerHelpers::PaymentParameters
   end
@@ -11,7 +13,6 @@ describe Spree::Core::ControllerHelpers::PaymentParameters, type: :controller do
     it "is unpermitted ActionController::Parameters" do
       expect(subject).to be_a(ActionController::Parameters)
       expect(subject).not_to be_permitted
-      expect(subject.to_h).to eq({})
     end
   end
 

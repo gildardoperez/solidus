@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 module Spree
@@ -171,7 +173,7 @@ module Spree
 
         context "a return item has an inactive return authorization reason" do
           before(:each) do
-            accepted_return_item.update_attributes(return_reason_id: inactive_rma_reason.id)
+            accepted_return_item.update(return_reason_id: inactive_rma_reason.id)
           end
 
           it "includes the inactive return authorization reason" do

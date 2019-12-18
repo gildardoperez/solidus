@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-shared_examples_for 'unlimited supply' do
+require 'rails_helper'
+
+RSpec.shared_examples_for 'unlimited supply' do
   it 'can_supply? any amount' do
     expect(subject.can_supply?(1)).to eq true
     expect(subject.can_supply?(101)).to eq true
@@ -10,7 +12,7 @@ end
 
 module Spree
   module Stock
-    describe Quantifier, type: :model do
+    RSpec.describe Quantifier, type: :model do
       let(:target_stock_location) { nil }
       let!(:stock_location) { create :stock_location_with_items }
       let!(:stock_item) { stock_location.stock_items.order(:id).first }
@@ -25,7 +27,7 @@ module Spree
         end
 
         context 'when track_inventory_levels is false' do
-          before { configure_spree_preferences { |config| config.track_inventory_levels = false } }
+          before { stub_spree_preferences(track_inventory_levels: false) }
 
           specify { expect(subject.total_on_hand).to eq(Float::INFINITY) }
 
@@ -47,7 +49,7 @@ module Spree
         end
 
         context 'when stock item prevents backordering' do
-          before { stock_item.update_attributes(backorderable: false) }
+          before { stock_item.update(backorderable: false) }
 
           specify { expect(subject.backorderable?).to be false }
 
@@ -79,7 +81,7 @@ module Spree
         end
 
         context 'when all stock items prevent backordering' do
-          before { stock_item.update_attributes(backorderable: false) }
+          before { stock_item.update(backorderable: false) }
 
           specify { expect(subject.backorderable?).to be false }
 

@@ -1,8 +1,11 @@
+# frozen_string_literal: true
+
 require "rails/generators/rails/app/app_generator"
 require 'active_support/core_ext/hash'
 require 'spree/core/version'
 
 module Spree
+  # @private
   class DummyGenerator < Rails::Generators::Base
     desc "Creates blank Rails application, installs Solidus and all sample data"
 
@@ -11,7 +14,7 @@ module Spree
 
     def self.source_paths
       paths = superclass.source_paths
-      paths << File.expand_path('../templates', __FILE__)
+      paths << File.expand_path('templates', __dir__)
       paths.flatten
     end
 
@@ -30,6 +33,17 @@ module Spree
       opts[:database] = 'sqlite3' if opts[:database].blank?
       opts[:force] = true
       opts[:skip_bundle] = true
+      opts[:skip_gemfile] = true
+      opts[:skip_git] = true
+      opts[:skip_keeps] = true
+      opts[:skip_listen] = true
+      opts[:skip_puma] = true
+      opts[:skip_rc] = true
+      opts[:skip_spring] = true
+      opts[:skip_test] = true
+      opts[:skip_yarn] = true
+      opts[:skip_bootsnap] = true
+      opts[:skip_webpack_install] = true
 
       puts "Generating dummy Rails application..."
       invoke Rails::Generators::AppGenerator,
@@ -42,13 +56,10 @@ module Spree
 
       template "rails/database.yml", "#{dummy_path}/config/database.yml", force: true
       template "rails/boot.rb", "#{dummy_path}/config/boot.rb", force: true
-      template "rails/application.rb", "#{dummy_path}/config/application.rb", force: true
+      template "rails/application.rb.tt", "#{dummy_path}/config/application.rb", force: true
       template "rails/routes.rb", "#{dummy_path}/config/routes.rb", force: true
       template "rails/test.rb", "#{dummy_path}/config/environments/test.rb", force: true
       template "rails/script/rails", "#{dummy_path}/spec/dummy/script/rails", force: true
-
-      # FIXME: We aren't ready for rails 5 defaults
-      remove_file "#{dummy_path}/config/initializers/new_framework_defaults.rb"
     end
 
     def test_dummy_inject_extension_requirements
@@ -103,7 +114,6 @@ end
 
     def application_definition
       @application_definition ||= begin
-
         dummy_application_path = File.expand_path("#{dummy_path}/config/application.rb", destination_root)
         unless options[:pretend] || !File.exist?(dummy_application_path)
           contents = File.read(dummy_application_path)
@@ -131,9 +141,10 @@ end
       end
     end
   end
-end
 
-module Spree::DummyGeneratorHelper
-  mattr_accessor :inject_extension_requirements
-  self.inject_extension_requirements = false
+  # @private
+  module DummyGeneratorHelper
+    mattr_accessor :inject_extension_requirements
+    self.inject_extension_requirements = false
+  end
 end

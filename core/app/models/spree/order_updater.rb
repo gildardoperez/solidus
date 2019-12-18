@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   class OrderUpdater
     attr_reader :order
@@ -57,6 +59,7 @@ module Spree
     # balance_due   when +payment_total+ is less than +total+
     # credit_owed   when +payment_total+ is greater than +total+
     # failed        when most recent payment is in the failed state
+    # void          when the order has been canceled and the payment total is 0
     #
     # The +payment_state+ value helps with reporting, etc. since it provides a quick and easy way to locate Orders needing attention.
     def update_payment_state
@@ -141,7 +144,7 @@ module Spree
     # give each of the shipments a chance to update themselves
     def update_shipments
       shipments.each do |shipment|
-        shipment.update!(order)
+        shipment.update_state
       end
     end
 
@@ -200,15 +203,11 @@ module Spree
       end
     end
 
-    def round_money(n)
-      (n * 100).round / 100.0
-    end
-
     def update_item_promotions
       [*line_items, *shipments].each do |item|
         promotion_adjustments = item.adjustments.select(&:promotion?)
 
-        promotion_adjustments.each(&:update!)
+        promotion_adjustments.each(&:recalculate)
         Spree::Config.promotion_chooser_class.new(promotion_adjustments).update
 
         item.promo_total = promotion_adjustments.select(&:eligible?).sum(&:amount)
@@ -221,7 +220,7 @@ module Spree
     # line items and/or shipments.
     def update_order_promotions
       promotion_adjustments = order.adjustments.select(&:promotion?)
-      promotion_adjustments.each(&:update!)
+      promotion_adjustments.each(&:recalculate)
       Spree::Config.promotion_chooser_class.new(promotion_adjustments).update
     end
 
@@ -244,7 +243,7 @@ module Spree
 
     def update_cancellations
       line_items.each do |line_item|
-        line_item.adjustments.select(&:cancellation?).each(&:update!)
+        line_item.adjustments.select(&:cancellation?).each(&:recalculate)
       end
     end
 
@@ -252,11 +251,10 @@ module Spree
       [*line_items, *shipments].each do |item|
         # The cancellation_total isn't persisted anywhere but is included in
         # the adjustment_total
-        item_cancellation_total = item.adjustments.select(&:cancellation?).sum(&:amount)
-
-        item.adjustment_total = item.promo_total +
-                                item.additional_tax_total +
-                                item_cancellation_total
+        item.adjustment_total = item.adjustments.
+          select(&:eligible?).
+          reject(&:included?).
+          sum(&:amount)
 
         if item.changed?
           item.update_columns(

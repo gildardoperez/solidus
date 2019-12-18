@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 module Spree
@@ -30,6 +32,14 @@ describe Spree::Admin::WidgetsController, type: :controller do
     model do
       acts_as_list
       validates :name, presence: true
+      before_destroy :check_destroy_constraints
+
+      def check_destroy_constraints
+        return unless name == 'undestroyable'
+        errors.add :base, "You can't destroy undestroyable things!"
+        errors.add :base, "Terrible things might happen."
+        throw(:abort)
+      end
     end
   end
 
@@ -50,7 +60,7 @@ describe Spree::Admin::WidgetsController, type: :controller do
 
     it 'succeeds' do
       subject
-      expect(response).to be_success
+      expect(response).to be_successful
     end
   end
 
@@ -63,7 +73,7 @@ describe Spree::Admin::WidgetsController, type: :controller do
 
     it 'succeeds' do
       subject
-      expect(response).to be_success
+      expect(response).to be_successful
     end
   end
 
@@ -143,6 +153,31 @@ describe Spree::Admin::WidgetsController, type: :controller do
 
     it 'destroys the resource' do
       expect { subject }.to change { Widget.count }.from(1).to(0)
+    end
+
+    context 'failure' do
+      let(:widget) { Widget.create!(name: 'undestroyable') }
+      let(:params) { { id: widget.id } }
+
+      context 'js format' do
+        subject { delete :destroy, params: params, format: 'js' }
+
+        it 'responds with error message' do
+          subject
+          expect(response).to be_unprocessable
+          expect(response.body).to eq assigns(:widget).errors.full_messages.to_sentence
+        end
+      end
+
+      context 'html format' do
+        subject { delete :destroy, params: params }
+
+        it 'responds with error message' do
+          subject
+          expect(response).to be_redirect
+          expect(flash[:error]).to eq assigns(:widget).errors.full_messages.to_sentence
+        end
+      end
     end
   end
 

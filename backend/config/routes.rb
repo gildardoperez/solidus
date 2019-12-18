@@ -1,7 +1,11 @@
+# frozen_string_literal: true
+
 Spree::Core::Engine.routes.draw do
   namespace :admin do
     get '/search/users', to: "search#users", as: :search_users
     get '/search/products', to: "search#products", as: :search_products
+
+    put '/locale/set', to: 'locale#set', defaults: { format: :json }, as: :set_locale
 
     resources :dashboards, only: [] do
       collection do
@@ -12,7 +16,7 @@ Spree::Core::Engine.routes.draw do
     resources :promotions do
       resources :promotion_rules
       resources :promotion_actions
-      resources :promotion_codes, only: [:index]
+      resources :promotion_codes, only: [:index, :new, :create]
       resources :promotion_code_batches, only: [:index, :new, :create] do
         get '/download', to: "promotion_code_batches#download", defaults: { format: "csv" }
       end
@@ -22,10 +26,6 @@ Spree::Core::Engine.routes.draw do
 
     resources :zones
 
-    resources :countries do
-      resources :states
-    end
-    resources :states
     resources :tax_categories
 
     resources :products do
@@ -45,9 +45,9 @@ Spree::Core::Engine.routes.draw do
         end
       end
       member do
-        get :clone
+        post :clone
       end
-      resources :variants do
+      resources :variants, only: [:index, :edit, :update, :new, :create, :destroy] do
         collection do
           post :update_positions
         end
@@ -66,11 +66,7 @@ Spree::Core::Engine.routes.draw do
 
     delete '/option_values/:id', to: "option_values#destroy", as: :option_value
 
-    resources :properties do
-      collection do
-        get :filtered
-      end
-    end
+    resources :properties
 
     delete '/product_properties/:id', to: "product_properties#destroy", as: :product_property
 
@@ -141,30 +137,14 @@ Spree::Core::Engine.routes.draw do
       end
     end
 
-    resources :reports, only: [:index] do
-      collection do
-        get :sales_total
-        post :sales_total
-      end
-    end
-
     resources :reimbursement_types, only: [:index]
     resources :adjustment_reasons, except: [:show, :destroy]
     resources :refund_reasons, except: [:show, :destroy]
     resources :return_reasons, except: [:show, :destroy]
+    resources :store_credit_reasons, except: [:show]
 
     resources :shipping_methods
     resources :shipping_categories
-
-    resources :stock_transfers, except: [:destroy] do
-      member do
-        get :receive
-        put :finalize
-        put :close
-        get :tracking_info
-        put :ship
-      end
-    end
 
     resources :stock_locations do
       resources :stock_movements, only: [:index]

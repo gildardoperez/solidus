@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe "Product Stock", type: :feature do
@@ -25,8 +27,6 @@ describe "Product Stock", type: :feature do
     # It is OK to still render the stock page, ensure no errors in this case
     context "with no stock location" do
       before do
-        @product = create(:product, name: 'apache baseball cap', price: 10)
-        @product.variants.create!(sku: 'FOOBAR')
         Spree::StockLocation.destroy_all
         find_by_id('content-header').click_link('Products')
         within_row(1) do
@@ -44,31 +44,45 @@ describe "Product Stock", type: :feature do
     it "can create a positive stock adjustment", js: true do
       adjust_count_on_hand('14')
       stock_item.reload
-      expect(stock_item.count_on_hand).to eq 14
+      expect(stock_item.count_on_hand).to eq 24
       expect(stock_item.stock_movements.count).to eq 1
-      expect(stock_item.stock_movements.first.quantity).to eq 4
+      expect(stock_item.stock_movements.first.quantity).to eq 14
     end
 
     it "can create a negative stock adjustment", js: true do
-      adjust_count_on_hand('4')
+      adjust_count_on_hand('-4')
       stock_item.reload
-      expect(stock_item.count_on_hand).to eq 4
+      expect(stock_item.count_on_hand).to eq 6
       expect(stock_item.stock_movements.count).to eq 1
-      expect(stock_item.stock_movements.first.quantity).to eq(-6)
+      expect(stock_item.stock_movements.first.quantity).to eq(-4)
+    end
+
+    it "can toggle backorderable", js: true do
+      toggle_backorderable(value: false)
+
+      click_link "Product Stock"
+      within("tr#spree_variant_#{variant.id}") do
+        expect(find(:css, "input[type='checkbox']")).not_to be_checked
+      end
     end
 
     def adjust_count_on_hand(count_on_hand)
-      within('.variant-stock-items', text: variant.sku) do
-        within('tr', text: stock_item.stock_location.name) do
-          click_icon :edit
-          find(:css, "input[type='number']").set(count_on_hand)
-          click_icon :check
-        end
+      within("tr#spree_variant_#{variant.id}") do
+        find(:css, "input[type='number']").set(count_on_hand)
+        click_icon :check
       end
-      expect(page).to have_content('Updated successfully')
+      expect(page).to have_content('Updated Successfully')
     end
 
-    context "with multiple stock locations" do
+    def toggle_backorderable(value: true)
+      within("tr#spree_variant_#{variant.id}") do
+        find(:css, "input[type='checkbox']").set(value)
+        click_icon :check
+      end
+      expect(page).to have_content('Updated Successfully')
+    end
+
+    context "with stock locations that don't have stock items for variant yet" do
       before do
         create(:stock_location, name: 'Other location', propagate_all_variants: false)
       end
@@ -77,7 +91,7 @@ describe "Product Stock", type: :feature do
         visit current_url
         within('.variant-stock-items', text: variant.sku) do
           fill_in "variant-count-on-hand-#{variant.id}", with: '3'
-          targetted_select2_search "Other location", from: "#s2id_variant-stock-location-#{variant.id}"
+          select "Other location", from: "stock_location_id"
           click_icon(:plus)
         end
         expect(page).to have_content('Created successfully')

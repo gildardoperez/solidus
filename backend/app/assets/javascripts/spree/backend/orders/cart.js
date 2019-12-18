@@ -19,6 +19,12 @@ Spree.Order.initCartPage = function(order_number) {
     collection: collection
   });
 
+  new Spree.Views.Cart.EmptyCartButton({
+    el: $('.js-empty-cart'),
+    collection: collection,
+    model: order
+  });
+
   new Spree.Views.Order.DetailsTotal({
     el: $('#order-total'),
     model: order
@@ -48,7 +54,7 @@ Spree.Order.initCartPage = function(order_number) {
   })
 }
 
-$(function() {
+Spree.ready(function() {
   if ($(".js-order-cart-page").length) {
     Spree.Order.initCartPage($(".js-order-cart-page").data("order-number"));
   }

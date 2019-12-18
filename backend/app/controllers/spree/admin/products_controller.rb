@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Admin
     class ProductsController < ResourceController
@@ -6,6 +8,7 @@ module Spree
       before_action :load_data, except: [:index]
       update.before :update_before
       helper_method :clone_object_url
+      before_action :split_params, only: [:create, :update]
 
       def show
         redirect_to action: :edit
@@ -17,19 +20,13 @@ module Spree
       end
 
       def update
-        if params[:product][:taxon_ids].present?
-          params[:product][:taxon_ids] = params[:product][:taxon_ids].split(',')
-        end
-        if params[:product][:option_type_ids].present?
-          params[:product][:option_type_ids] = params[:product][:option_type_ids].split(',')
-        end
         if updating_variant_property_rules?
           params[:product][:variant_property_rules_attributes].each do |_index, param_attrs|
             param_attrs[:option_value_ids] = param_attrs[:option_value_ids].split(',')
           end
         end
         invoke_callbacks(:update, :before)
-        if @object.update_attributes(permitted_resource_params)
+        if @object.update(permitted_resource_params)
           invoke_callbacks(:update, :after)
           flash[:success] = flash_message_for(@object, :successfully_updated)
           respond_with(@object) do |format|
@@ -47,9 +44,9 @@ module Spree
 
       def destroy
         @product = Spree::Product.friendly.find(params[:id])
-        @product.destroy
+        @product.discard
 
-        flash[:success] = Spree.t('notice_messages.product_deleted')
+        flash[:success] = t('spree.notice_messages.product_deleted')
 
         respond_with(@product) do |format|
           format.html { redirect_to collection_url }
@@ -61,15 +58,24 @@ module Spree
         @new = @product.duplicate
 
         if @new.save
-          flash[:success] = Spree.t('notice_messages.product_cloned')
+          flash[:success] = t('spree.notice_messages.product_cloned')
         else
-          flash[:error] = Spree.t('notice_messages.product_not_cloned')
+          flash[:error] = t('spree.notice_messages.product_not_cloned')
         end
 
         redirect_to edit_admin_product_url(@new)
       end
 
       private
+
+      def split_params
+        if params[:product][:taxon_ids].present?
+          params[:product][:taxon_ids] = params[:product][:taxon_ids].split(',')
+        end
+        if params[:product][:option_type_ids].present?
+          params[:product][:option_type_ids] = params[:product][:option_type_ids].split(',')
+        end
+      end
 
       def find_resource
         Spree::Product.with_deleted.friendly.find(params[:id])
@@ -89,29 +95,21 @@ module Spree
       end
 
       def load_data
-        @taxons = Spree::Taxon.order(:name)
-        @option_types = Spree::OptionType.order(:name)
         @tax_categories = Spree::TaxCategory.order(:name)
         @shipping_categories = Spree::ShippingCategory.order(:name)
       end
 
       def collection
-        return @collection if @collection.present?
+        return @collection if @collection
         params[:q] ||= {}
-        params[:q][:deleted_at_null] ||= "1"
-
         params[:q][:s] ||= "name asc"
-        @collection = super
-        @collection = @collection.with_deleted if params[:q].delete(:deleted_at_null) == '0'
         # @search needs to be defined as this is passed to search_form_for
-        @search = @collection.ransack(params[:q])
+        @search = super.ransack(params[:q])
         @collection = @search.result.
-              distinct_by_product_ids(params[:q][:s]).
+              order(id: :asc).
               includes(product_includes).
               page(params[:page]).
               per(Spree::Config[:admin_products_per_page])
-
-        @collection
       end
 
       def update_before
@@ -122,7 +120,7 @@ module Spree
       end
 
       def product_includes
-        [{ variants: [:images], master: [:images, :default_price] }]
+        [:variant_images, { variants: [:images], master: [:images, :default_price] }]
       end
 
       def clone_object_url(resource)

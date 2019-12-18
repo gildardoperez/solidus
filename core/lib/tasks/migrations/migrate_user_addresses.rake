@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 namespace 'spree:migrations:migrate_user_addresses' do
   # This creates an entry in the user_addresses table for a user's currently
   # associated shipping and billing addresses.
@@ -8,9 +10,11 @@ namespace 'spree:migrations:migrate_user_addresses' do
   # to the user's address book. This will catch up all the historical data.
 
   task up: :environment do
+    Spree::Deprecation.warn("rake spree:migrations:migrate_user_addresses:up has been deprecated and will be removed with Solidus 3.0.")
+
     Spree.user_class.find_each(batch_size: 500) do |user|
-      ship_address = Spree::Address.find_by_id(user.ship_address_id)
-      bill_address = Spree::Address.find_by_id(user.bill_address_id)
+      ship_address = Spree::Address.find_by(id: user.ship_address_id)
+      bill_address = Spree::Address.find_by(id: user.bill_address_id)
 
       current_addresses = [bill_address, ship_address].compact.uniq
 
@@ -24,6 +28,7 @@ namespace 'spree:migrations:migrate_user_addresses' do
   end
 
   task down: :environment do
+    Spree::Deprecation.warn("rake spree:migrations:migrate_user_addresses:down has been deprecated and will be removed with Solidus 3.0.")
     Spree::UserAddress.delete_all
   end
 end

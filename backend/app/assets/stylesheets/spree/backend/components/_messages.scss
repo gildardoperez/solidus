@@ -1,14 +1,13 @@
 .errorExplanation {
-  padding: 5px;
-  border: 1px solid very-light($brand-danger, 12);
-  background-color: very-light($brand-danger, 6);
-  border-radius: 3px;
-  color: very-light($brand-danger, 30);
+  padding: 10px 15px;
+  border-top: 3px solid theme-color("danger");
+  background-color: lighten(theme-color("danger"), 40);
+  border-radius: 0 0 $border-radius $border-radius;
+  color: $body-color;
   margin-bottom: 15px;
 
   h2 {
     font-size: 140%;
-    color: very-light($brand-danger, 30);
     margin-bottom: 5px;
   }
 
@@ -26,20 +25,36 @@
 }
 
 .flash-wrapper {
-  @include position(fixed, null 0 0 $width-sidebar);
+  position: fixed;
+  bottom: 0;
+  left: $width-sidebar;
+  right: 0;
   z-index: 1000;
+
+  .admin-nav-hidden & {
+    left: $width-sidebar-collapsed;
+  }
 }
 
 .flash {
+  border-top: 3px solid;
   padding: 16px;
   text-align: center;
   font-size: 120%;
-  color: $color-1;
-  font-weight: $font-weight-bold;
+  color: $body-color;
 
-  &.notice  { background-color: rgba($brand-warning,  0.8) }
-  &.success { background-color: rgba($brand-success, 0.8) }
-  &.error   { background-color: rgba($brand-danger,   0.8) }
+  &.notice {
+    background-color: rgba(lighten($color-notice, 15), .95);
+    border-top-color: $color-notice;
+  }
+  &.success {
+    background-color: rgba(lighten($color-success, 30), .95);
+    border-top-color: $color-success;
+  }
+  &.error {
+    background-color: rgba(lighten($color-error, 30), .95);
+    border-top-color: $color-error;
+  }
 }
 
 .alert {
@@ -50,5 +65,5 @@
     text-decoration: underline;
   }
 
-  &.error a { color: very-light($brand-danger, 10) }
+  &.error a { color: lighten(theme-color("danger"), 8); }
 }

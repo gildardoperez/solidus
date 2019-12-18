@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe "Cart", type: :feature, inaccessible: true do
@@ -27,7 +29,7 @@ describe "Cart", type: :feature, inaccessible: true do
   it "does not error out with a 404 when GET'ing to /orders/populate" do
     visit '/orders/populate'
     within(".error") do
-      expect(page).to have_content(Spree.t(:populate_get_error))
+      expect(page).to have_content(I18n.t('spree.populate_get_error'))
     end
   end
 

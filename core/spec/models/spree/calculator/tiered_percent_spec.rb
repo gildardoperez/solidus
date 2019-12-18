@@ -1,7 +1,9 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 require 'shared_examples/calculator_shared_examples'
 
-describe Spree::Calculator::TieredPercent, type: :model do
+RSpec.describe Spree::Calculator::TieredPercent, type: :model do
   let(:calculator) { Spree::Calculator::TieredPercent.new }
 
   it_behaves_like 'a calculator with a description'
@@ -34,7 +36,7 @@ describe Spree::Calculator::TieredPercent, type: :model do
         before { calculator.preferred_tiers = { 20 => 20 } }
         it "converts successfully" do
           is_expected.to be true
-          expect(calculator.preferred_tiers).to eq({ BigDecimal.new('20') => BigDecimal.new('20') })
+          expect(calculator.preferred_tiers).to eq({ BigDecimal('20') => BigDecimal('20') })
         end
       end
 
@@ -42,7 +44,7 @@ describe Spree::Calculator::TieredPercent, type: :model do
         before { calculator.preferred_tiers = { 20.5 => 20.5 } }
         it "converts successfully" do
           is_expected.to be true
-          expect(calculator.preferred_tiers).to eq({ BigDecimal.new('20.5') => BigDecimal.new('20.5') })
+          expect(calculator.preferred_tiers).to eq({ BigDecimal('20.5') => BigDecimal('20.5') })
         end
       end
 
@@ -50,7 +52,7 @@ describe Spree::Calculator::TieredPercent, type: :model do
         before { calculator.preferred_tiers = { "20" => 20 } }
         it "converts successfully" do
           is_expected.to be true
-          expect(calculator.preferred_tiers).to eq({ BigDecimal.new('20') => BigDecimal.new('20') })
+          expect(calculator.preferred_tiers).to eq({ BigDecimal('20') => BigDecimal('20') })
         end
       end
 
@@ -58,7 +60,7 @@ describe Spree::Calculator::TieredPercent, type: :model do
         before { calculator.preferred_tiers = { "  20 " => 20 } }
         it "converts successfully" do
           is_expected.to be true
-          expect(calculator.preferred_tiers).to eq({ BigDecimal.new('20') => BigDecimal.new('20') })
+          expect(calculator.preferred_tiers).to eq({ BigDecimal('20') => BigDecimal('20') })
         end
       end
 
@@ -66,15 +68,22 @@ describe Spree::Calculator::TieredPercent, type: :model do
         before { calculator.preferred_tiers = { "20.5" => "20.5" } }
         it "converts successfully" do
           is_expected.to be true
-          expect(calculator.preferred_tiers).to eq({ BigDecimal.new('20.5') => BigDecimal.new('20.5') })
+          expect(calculator.preferred_tiers).to eq({ BigDecimal('20.5') => BigDecimal('20.5') })
         end
       end
     end
   end
 
   describe "#compute" do
-    let(:order) { create(:order_with_line_items, line_items_count: line_item_count, line_items_price: price) }
+    let(:order) do
+      create(
+        :order_with_line_items,
+        line_items_count: line_item_count,
+        line_items_price: price
+      )
+    end
     let(:price) { 10 }
+    let(:preferred_currency) { "USD" }
 
     before do
       calculator.preferred_base_percent = 10
@@ -82,6 +91,7 @@ describe Spree::Calculator::TieredPercent, type: :model do
         20 => 15,
         30 => 20
       }
+      calculator.preferred_currency = preferred_currency
     end
 
     context "with a line item" do
@@ -121,6 +131,18 @@ describe Spree::Calculator::TieredPercent, type: :model do
         context "when amount falls within the third tier" do
           let(:price) { 30 }
           it { is_expected.to eq 6.0 }
+        end
+      end
+
+      context "when the order's currency does not match the calculator" do
+        let(:preferred_currency) { "JPY" }
+        let(:line_item_count) { 1 }
+        let(:price) { 15 }
+        it { is_expected.to eq 0 }
+
+        it "rounds based on currency" do
+          allow(order).to receive_messages currency: "JPY"
+          expect(subject).to eq(2)
         end
       end
     end
@@ -164,6 +186,11 @@ describe Spree::Calculator::TieredPercent, type: :model do
           let(:price) { 30 }
           it { is_expected.to eq 6.0 }
         end
+      end
+
+      context "when the order's currency does not match the calculator" do
+        let(:preferred_currency) { "CAD" }
+        it { is_expected.to eq 0 }
       end
     end
   end

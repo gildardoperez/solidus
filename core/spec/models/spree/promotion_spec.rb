@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Promotion, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Promotion, type: :model do
   let(:promotion) { Spree::Promotion.new }
 
   describe "validations" do
@@ -44,6 +46,19 @@ describe Spree::Promotion, type: :model do
       advertised = Spree::Promotion.advertised
       expect(advertised).to include(advertised_promotion)
       expect(advertised).not_to include(promotion)
+    end
+  end
+
+  describe ".coupons" do
+    let(:promotion_code) { create(:promotion_code) }
+    let!(:promotion_with_code) { promotion_code.promotion }
+    let!(:another_promotion_code) { create(:promotion_code, promotion: promotion_with_code) }
+    let!(:promotion_without_code) { create(:promotion) }
+
+    subject { described_class.coupons }
+
+    it "returns only distinct promotions with a code associated" do
+      expect(subject).to eq [promotion_with_code]
     end
   end
 
@@ -104,7 +119,7 @@ describe Spree::Promotion, type: :model do
       promotion.created_at = 2.days.ago
 
       @user = create(:user)
-      @order = create(:order, user: @user, created_at: DateTime.current)
+      @order = create(:order, user: @user, created_at: Time.current)
       @payload = { order: @order, user: @user }
     end
 
@@ -131,7 +146,7 @@ describe Spree::Promotion, type: :model do
 
     it "does activate if newer then order" do
       expect(@action1).to receive(:perform).with(hash_including(@payload))
-      promotion.created_at = DateTime.current + 2
+      promotion.created_at = Time.current + 2
       expect(promotion.activate(@payload)).to be true
     end
 
@@ -232,7 +247,7 @@ describe Spree::Promotion, type: :model do
           let(:usage_limit) { 1 }
           context "on a different order" do
             before do
-              FactoryGirl.create(
+              FactoryBot.create(
                 :completed_order_with_promotion,
                 promotion: promotion
               )
@@ -253,7 +268,7 @@ describe Spree::Promotion, type: :model do
 
     context "with an order-level adjustment" do
       let(:promotion) do
-        FactoryGirl.create(
+        FactoryBot.create(
           :promotion,
           :with_order_adjustment,
           code: "discount",
@@ -261,7 +276,7 @@ describe Spree::Promotion, type: :model do
         )
       end
       let(:promotable) do
-        FactoryGirl.create(
+        FactoryBot.create(
           :completed_order_with_promotion,
           promotion: promotion
         )
@@ -271,7 +286,7 @@ describe Spree::Promotion, type: :model do
 
     context "with an item-level adjustment" do
       let(:promotion) do
-        FactoryGirl.create(
+        FactoryBot.create(
           :promotion,
           :with_line_item_adjustment,
           code: "discount",
@@ -286,7 +301,7 @@ describe Spree::Promotion, type: :model do
         })
       end
       context "when there are multiple line items" do
-        let(:order) { FactoryGirl.create(:order_with_line_items, line_items_count: 2) }
+        let(:order) { FactoryBot.create(:order_with_line_items, line_items_count: 2) }
         describe "the first item" do
           let(:promotable) { order.line_items.first }
           it_behaves_like "it should"
@@ -297,7 +312,7 @@ describe Spree::Promotion, type: :model do
         end
       end
       context "when there is a single line item" do
-        let(:order) { FactoryGirl.create(:order_with_line_items) }
+        let(:order) { FactoryBot.create(:order_with_line_items) }
         let(:promotable) { order.line_items.first }
         it_behaves_like "it should"
       end
@@ -306,7 +321,7 @@ describe Spree::Promotion, type: :model do
 
   describe "#usage_count" do
     let(:promotion) do
-      FactoryGirl.create(
+      FactoryBot.create(
         :promotion,
         :with_order_adjustment,
         code: "discount"
@@ -316,13 +331,13 @@ describe Spree::Promotion, type: :model do
     subject { promotion.usage_count }
 
     context "when the code is applied to a non-complete order" do
-      let(:order) { FactoryGirl.create(:order_with_line_items) }
+      let(:order) { FactoryBot.create(:order_with_line_items) }
       before { promotion.activate(order: order, promotion_code: promotion.codes.first) }
       it { is_expected.to eq 0 }
     end
     context "when the code is applied to a complete order" do
       let!(:order) do
-        FactoryGirl.create(
+        FactoryBot.create(
           :completed_order_with_promotion,
           promotion: promotion
         )
@@ -366,6 +381,86 @@ describe Spree::Promotion, type: :model do
       promotion.starts_at = Time.current - 1.day
       promotion.expires_at = Time.current + 1.day
       expect(promotion).not_to be_inactive
+    end
+  end
+
+  describe '#not_started?' do
+    let(:promotion) { Spree::Promotion.new(starts_at: starts_at) }
+    subject { promotion.not_started? }
+
+    context 'no starts_at date' do
+      let(:starts_at) { nil }
+      it { is_expected.to be_falsey }
+    end
+
+    context 'when starts_at date is in the past' do
+      let(:starts_at) { Time.current - 1.day }
+      it { is_expected.to be_falsey }
+    end
+
+    context 'when starts_at date is not already reached' do
+      let(:starts_at) { Time.current + 1.day }
+      it { is_expected.to be_truthy }
+    end
+  end
+
+  describe '#started?' do
+    let(:promotion) { Spree::Promotion.new(starts_at: starts_at) }
+    subject { promotion.started? }
+
+    context 'when no starts_at date' do
+      let(:starts_at) { nil }
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when starts_at date is in the past' do
+      let(:starts_at) { Time.current - 1.day }
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when starts_at date is not already reached' do
+      let(:starts_at) { Time.current + 1.day }
+      it { is_expected.to be_falsey }
+    end
+  end
+
+  describe '#expired?' do
+    let(:promotion) { Spree::Promotion.new(expires_at: expires_at) }
+    subject { promotion.expired? }
+
+    context 'when no expires_at date' do
+      let(:expires_at) { nil }
+      it { is_expected.to be_falsey }
+    end
+
+    context 'when expires_at date is not already reached' do
+      let(:expires_at) { Time.current + 1.day }
+      it { is_expected.to be_falsey }
+    end
+
+    context 'when expires_at date is in the past' do
+      let(:expires_at) { Time.current - 1.day }
+      it { is_expected.to be_truthy }
+    end
+  end
+
+  describe '#not_expired?' do
+    let(:promotion) { Spree::Promotion.new(expires_at: expires_at) }
+    subject { promotion.not_expired? }
+
+    context 'when no expired_at date' do
+      let(:expires_at) { nil }
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when expires_at date is not already reached' do
+      let(:expires_at) { Time.current + 1.day }
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when expires_at date is in the past' do
+      let(:expires_at) { Time.current - 1.day }
+      it { is_expected.to be_falsey }
     end
   end
 
@@ -474,80 +569,69 @@ describe Spree::Promotion, type: :model do
 
   context "#eligible?" do
     subject do
-      promotion.eligible?(promotable)
+      promotion.eligible?(promotable, promotion_code: promotion.codes.first)
     end
 
-    let(:promotable) { create :order }
-
-    it { is_expected.to be true }
-
-    context "when promotion is expired" do
-      before { promotion.expires_at = Time.current - 10.days }
-      it { is_expected.to be false }
-    end
-
-    context "when the promotion's usage limit is exceeded" do
-      let(:order) { FactoryGirl.create(:completed_order_with_promotion, promotion: promotion) }
-      let(:promotion) { FactoryGirl.create(:promotion, :with_order_adjustment) }
-
-      before do
-        FactoryGirl.create(
-          :completed_order_with_promotion,
-          promotion: promotion
-        )
-        promotion.usage_limit = 1
-      end
-
-      it "returns false" do
-        expect(promotion.eligible?(promotable)).to eq(false)
-      end
-    end
-
-    context "when the promotion code's usage limit is exceeded" do
-      let(:order) { FactoryGirl.create(:completed_order_with_promotion, promotion: promotion) }
-      let(:promotion) { create(:promotion, :with_order_adjustment, code: 'abc123', per_code_usage_limit: 1) }
-      let(:promotion_code) { promotion.codes.first }
-
-      before do
-        FactoryGirl.create(
-          :completed_order_with_promotion,
-          promotion: promotion
-        )
-        promotion_code.adjustments.update_all(eligible: true)
-      end
-
-      it "returns false" do
-        expect(promotion.eligible?(promotable, promotion_code: promotion_code)).to eq(false)
-      end
-    end
-
-    context "when promotable is a Spree::LineItem" do
-      let(:promotable) { create :line_item }
-      let(:product) { promotable.product }
-
-      before do
-        product.promotionable = promotionable
-      end
-
-      context "and product is promotionable" do
-        let(:promotionable) { true }
+    shared_examples "a promotable" do
+      context "when empty" do
         it { is_expected.to be true }
       end
 
-      context "and product is not promotionable" do
-        let(:promotionable) { false }
+      context "when promotion is expired" do
+        before { promotion.expires_at = Time.current - 10.days }
+
         it { is_expected.to be false }
+      end
+
+      context "when promotion's usage limit is exceeded" do
+        before do
+          promotion.usage_limit = 1
+          create(:completed_order_with_promotion, promotion: promotion)
+        end
+
+        it { is_expected.to be false }
+      end
+
+      context "when promotion code's usage limit is exceeded" do
+        before do
+          promotion.per_code_usage_limit = 1
+          create(:completed_order_with_promotion, promotion: promotion)
+          promotion.codes.first.adjustments.update_all(eligible: true)
+        end
+
+        it { is_expected.to be false }
+      end
+
+      context "when promotion is at last usage on the same order" do
+        let(:order) { create(:completed_order_with_promotion, promotion: promotion) }
+        let(:promotable) { order }
+
+        before do
+          promotion.usage_limit = 1
+        end
+
+        it { is_expected.to be true }
+      end
+
+      context "when promotion code is at last usage on the same order" do
+        let(:order) { create(:completed_order_with_promotion, promotion: promotion) }
+        let(:promotable) { order }
+
+        before do
+          promotion.per_code_usage_limit = 1
+        end
+
+        it { is_expected.to be true }
       end
     end
 
     context "when promotable is a Spree::Order" do
+      let(:promotion) { create(:promotion, :with_order_adjustment) }
       let(:promotable) { create :order }
 
-      context "and it is empty" do
-        it { is_expected.to be true }
-      end
+      it_behaves_like "a promotable"
 
-      context "and it contains items" do
+      context "when it contains items" do
         let!(:line_item) { create(:line_item, order: promotable) }
         let!(:line_item2) { create(:line_item, order: promotable) }
 
@@ -555,6 +639,7 @@ describe Spree::Promotion, type: :model do
           before do
             line_item.product.update_column(:promotionable, false)
           end
+
           it { is_expected.to be false }
         end
 
@@ -563,6 +648,7 @@ describe Spree::Promotion, type: :model do
             line_item.product.update_column(:promotionable, false)
             line_item2.product.update_column(:promotionable, false)
           end
+
           it { is_expected.to be false }
         end
 
@@ -570,6 +656,32 @@ describe Spree::Promotion, type: :model do
           it { is_expected.to be true }
         end
       end
+    end
+
+    context "when promotable is a Spree::LineItem" do
+      let(:promotion) { create(:promotion, :with_line_item_adjustment) }
+      let(:promotable) { create(:line_item) }
+
+      it_behaves_like "a promotable"
+
+      context "and product is promotionable" do
+        before { promotable.product.promotionable = true }
+
+        it { is_expected.to be true }
+      end
+
+      context "and product is not promotionable" do
+        before { promotable.product.promotionable = false }
+
+        it { is_expected.to be false }
+      end
+    end
+
+    context "when promotable is a Spree::Shipment" do
+      let(:promotion) { create(:promotion, :with_free_shipping) }
+      let(:promotable) { create(:shipment) }
+
+      it_behaves_like "a promotable"
     end
   end
 
@@ -597,7 +709,8 @@ describe Spree::Promotion, type: :model do
           allow(rule2).to receive_messages(eligible?: true, applicable?: true)
 
           promotion.promotion_rules = [rule1, rule2]
-          allow(promotion.promotion_rules).to receive(:for).and_return(promotion.promotion_rules)
+          allow(promotion).to receive_message_chain(:rules, :none?).and_return(false)
+          allow(promotion).to receive_message_chain(:rules, :for).and_return(promotion.promotion_rules)
         end
         it "returns the eligible rules" do
           expect(promotion.eligible_rules(promotable)).to eq [rule1, rule2]
@@ -615,7 +728,8 @@ describe Spree::Promotion, type: :model do
           allow(rule2).to receive_messages(eligible?: false, applicable?: true, eligibility_errors: errors)
 
           promotion.promotion_rules = [rule1, rule2]
-          allow(promotion.promotion_rules).to receive(:for).and_return(promotion.promotion_rules)
+          allow(promotion).to receive_message_chain(:rules, :none?).and_return(false)
+          allow(promotion).to receive_message_chain(:rules, :for).and_return(promotion.promotion_rules)
         end
         it "returns nil" do
           expect(promotion.eligible_rules(promotable)).to be_nil
@@ -628,15 +742,16 @@ describe Spree::Promotion, type: :model do
     end
 
     context "with 'any' match policy" do
-      let(:promotion) { Spree::Promotion.create(name: "Promo", match_policy: 'any') }
       let(:promotable) { double('Promotable') }
 
+      before do
+        promotion.match_policy = 'any'
+      end
+
       it "should have eligible rules if any of the rules are eligible" do
-        allow_any_instance_of(Spree::PromotionRule).to receive_messages(applicable?: true)
-        true_rule = Spree::PromotionRule.create(promotion: promotion)
-        allow(true_rule).to receive_messages(eligible?: true)
-        allow(promotion).to receive_messages(rules: [true_rule])
-        allow(promotion).to receive_message_chain(:rules, :for).and_return([true_rule])
+        true_rule = mock_model(Spree::PromotionRule, eligible?: true, applicable?: true)
+        promotion.promotion_rules = [true_rule]
+        allow(promotion.rules).to receive(:for) { promotion.rules }
         expect(promotion.eligible_rules(promotable)).to eq [true_rule]
       end
 
@@ -647,7 +762,8 @@ describe Spree::Promotion, type: :model do
           allow(rule).to receive_messages(eligible?: false, applicable?: true, eligibility_errors: errors)
 
           promotion.promotion_rules = [rule]
-          allow(promotion.promotion_rules).to receive(:for).and_return(promotion.promotion_rules)
+          allow(promotion).to receive_message_chain(:rules, :for).and_return(promotion.promotion_rules)
+          allow(promotion).to receive_message_chain(:rules, :none?).and_return(false)
         end
         it "returns nil" do
           expect(promotion.eligible_rules(promotable)).to be_nil
@@ -663,13 +779,13 @@ describe Spree::Promotion, type: :model do
   describe '#line_item_actionable?' do
     let(:order) { double Spree::Order }
     let(:line_item) { double Spree::LineItem }
-    let(:true_rule) { double Spree::PromotionRule, eligible?: true, applicable?: true, actionable?: true }
-    let(:false_rule) { double Spree::PromotionRule, eligible?: true, applicable?: true, actionable?: false }
+    let(:true_rule) { mock_model Spree::PromotionRule, eligible?: true, applicable?: true, actionable?: true }
+    let(:false_rule) { mock_model Spree::PromotionRule, eligible?: true, applicable?: true, actionable?: false }
     let(:rules) { [] }
 
     before do
-      allow(promotion).to receive(:rules) { rules }
-      allow(rules).to receive(:for) { rules }
+      promotion.promotion_rules = rules
+      allow(promotion.rules).to receive(:for) { rules }
     end
 
     subject { promotion.line_item_actionable? order, line_item }
@@ -761,7 +877,7 @@ describe Spree::Promotion, type: :model do
     context 'when the user has used this promo' do
       before do
         promotion.activate(order: order)
-        order.update!
+        order.recalculate
         order.completed_at = Time.current
         order.save!
       end
@@ -814,7 +930,7 @@ describe Spree::Promotion, type: :model do
       expect(order.adjustment_total).to eq 0
 
       promo.activate order: order, promotion_code: promotion_code
-      order.update!
+      order.recalculate
 
       expect(line_item.adjustments.size).to eq(1)
       expect(order.adjustment_total).to eq(-5)

@@ -1,4 +1,6 @@
-Spree::StoreCreditCategory.find_or_create_by!(name: Spree.t("store_credit_category.default"))
+# frozen_string_literal: true
+
+Spree::StoreCreditCategory.find_or_create_by!(name: I18n.t('spree.store_credit_category.default'))
 
 Spree::PaymentMethod.create_with(
   name: "Store Credit",
@@ -10,11 +12,12 @@ Spree::PaymentMethod.create_with(
   type: "Spree::PaymentMethod::StoreCredit"
 )
 
-Spree::StoreCreditType.create_with(priority: 1).find_or_create_by!(name: 'Expiring')
-Spree::StoreCreditType.create_with(priority: 2).find_or_create_by!(name: 'Non-expiring')
+Spree::StoreCreditType.create_with(priority: 1).find_or_create_by!(name: Spree::StoreCreditType::EXPIRING)
+Spree::StoreCreditType.create_with(priority: 2).find_or_create_by!(name: Spree::StoreCreditType::NON_EXPIRING)
 
 Spree::ReimbursementType.create_with(name: "Store Credit").find_or_create_by!(type: 'Spree::ReimbursementType::StoreCredit')
+Spree::ReimbursementType.create_with(name: "Original").find_or_create_by!(type: 'Spree::ReimbursementType::OriginalPayment')
 
 Spree::StoreCreditCategory.find_or_create_by!(name: 'Gift Card')
 
-Spree::StoreCreditUpdateReason.find_or_create_by!(name: 'Credit Given In Error')
+Spree::StoreCreditReason.find_or_create_by!(name: 'Credit Given In Error')

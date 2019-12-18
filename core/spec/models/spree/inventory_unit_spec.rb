@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::InventoryUnit, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::InventoryUnit, type: :model do
   let(:stock_location) { create(:stock_location_with_items) }
   let(:stock_item) { stock_location.stock_items.order(:id).first }
   let(:line_item) { create(:line_item, variant: stock_item.variant) }
@@ -37,7 +39,6 @@ describe Spree::InventoryUnit, type: :model do
       unit = shipment.inventory_units.first
       unit.state = 'backordered'
       unit.variant_id = stock_item.variant.id
-      unit.order_id = order.id
       unit.line_item = line_item
       unit.tap(&:save!)
     end
@@ -59,7 +60,6 @@ describe Spree::InventoryUnit, type: :model do
     it "does not find inventory units that aren't backordered" do
       on_hand_unit = shipment.inventory_units.build
       on_hand_unit.state = 'on_hand'
-      on_hand_unit.order_id = order.id
       on_hand_unit.line_item = line_item
       on_hand_unit.variant = stock_item.variant
       on_hand_unit.save!
@@ -70,7 +70,6 @@ describe Spree::InventoryUnit, type: :model do
     it "does not find inventory units that don't match the stock item's variant" do
       other_variant_unit = shipment.inventory_units.build
       other_variant_unit.state = 'backordered'
-      other_variant_unit.order_id = order.id
       other_variant_unit.line_item = line_item
       other_variant_unit.variant = create(:variant)
       other_variant_unit.save!
@@ -98,8 +97,6 @@ describe Spree::InventoryUnit, type: :model do
         shipment.stock_location = stock_location
         shipment.shipping_methods << create(:shipping_method)
         shipment.order = other_order
-        # We don't care about this in this test
-        allow(shipment).to receive(:ensure_correct_adjustment)
         shipment.tap(&:save!)
       end
 
@@ -107,7 +104,6 @@ describe Spree::InventoryUnit, type: :model do
         unit = other_shipment.inventory_units.build
         unit.state = 'backordered'
         unit.variant_id = stock_item.variant.id
-        unit.order_id = other_order.id
         unit.line_item = line_item
         unit.tap(&:save!)
       end
@@ -118,17 +114,17 @@ describe Spree::InventoryUnit, type: :model do
     end
   end
 
-  context "variants deleted" do
+  context "variants discarded" do
     let!(:unit) { create(:inventory_unit) }
 
     it "can still fetch variant" do
-      unit.variant.destroy
+      unit.variant.discard
       expect(unit.reload.variant).to be_a Spree::Variant
     end
 
     it "can still fetch variants by eager loading (remove default_scope)" do
       skip "find a way to remove default scope when eager loading associations"
-      unit.variant.destroy
+      unit.variant.discard
       expect(Spree::InventoryUnit.joins(:variant).includes(:variant).first.variant).to be_a Spree::Variant
     end
   end
@@ -144,14 +140,13 @@ describe Spree::InventoryUnit, type: :model do
     }
 
     it "should create a stock movement" do
+      expect(Spree::Deprecation).to receive(:warn)
       Spree::InventoryUnit.finalize_units!(inventory_units)
       expect(inventory_units.any?(&:pending)).to be false
     end
   end
 
   describe "#current_or_new_return_item" do
-    before { allow(inventory_unit).to receive_messages(pre_tax_amount: 100.0) }
-
     subject { inventory_unit.current_or_new_return_item }
 
     context "associated with a return item" do

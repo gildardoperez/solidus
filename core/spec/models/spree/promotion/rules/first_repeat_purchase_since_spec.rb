@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Promotion::Rules::FirstRepeatPurchaseSince do
+require 'rails_helper'
+
+RSpec.describe Spree::Promotion::Rules::FirstRepeatPurchaseSince do
   describe "#applicable?" do
     subject { described_class.new.applicable?(promotable) }
 
@@ -40,10 +42,10 @@ describe Spree::Promotion::Rules::FirstRepeatPurchaseSince do
         let(:order_completion_date_2) { 1.day.ago }
         before do
           old_order_1 = create :completed_order_with_totals, user: user
-          old_order_1.update_attributes(completed_at: order_completion_date_1)
+          old_order_1.update(completed_at: order_completion_date_1)
 
           old_order_2 = create :completed_order_with_totals, user: user
-          old_order_2.update_attributes(completed_at: order_completion_date_2)
+          old_order_2.update(completed_at: order_completion_date_2)
         end
 
         context "the last completed order was greater than the preferred days ago" do

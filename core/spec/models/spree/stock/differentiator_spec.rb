@@ -1,8 +1,10 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
   module Stock
-    describe Differentiator, type: :model do
+    RSpec.describe Differentiator, type: :model do
       let(:variant1) { mock_model(Variant) }
       let(:variant2) { mock_model(Variant) }
 
@@ -17,11 +19,11 @@ module Spree
       let(:order) { mock_model(Order, line_items: [line_item1, line_item2]) }
 
       let(:package1) do
-        Package.new(stock_location).tap { |p| p.add(inventory_unit1) }
+        Package.new(stock_location).tap { |package| package.add(inventory_unit1) }
       end
 
       let(:package2) do
-        Package.new(stock_location).tap { |p| p.add(inventory_unit2) }
+        Package.new(stock_location).tap { |package| package.add(inventory_unit2) }
       end
 
       let(:packages) { [package1, package2] }

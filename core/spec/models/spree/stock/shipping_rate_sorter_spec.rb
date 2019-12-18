@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Stock::ShippingRateSorter do
+require 'rails_helper'
+
+RSpec.describe Spree::Stock::ShippingRateSorter do
   describe '#sort' do
     it 'sorts by increasing cost' do
       cheapest_shipping_rate = Spree::ShippingRate.new(cost: 1.00)

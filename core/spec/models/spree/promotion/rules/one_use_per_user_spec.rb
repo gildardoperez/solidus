@@ -1,6 +1,8 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::Promotion::Rules::OneUsePerUser, type: :model do
+require 'rails_helper'
+
+RSpec.describe Spree::Promotion::Rules::OneUsePerUser, type: :model do
   let(:rule) { described_class.new }
 
   describe '#eligible?(order)' do
@@ -22,6 +24,11 @@ describe Spree::Promotion::Rules::OneUsePerUser, type: :model do
           expect(rule.eligibility_errors.full_messages.first).
             to eq "This coupon code can only be used once per user."
         end
+        it "sets an error code" do
+          rule.eligible?(order)
+          expect(rule.eligibility_errors.details[:base].first[:error_code]).
+            to eq :limit_once_per_user
+        end
       end
 
       context 'when the user has not used this promotion before' do
@@ -36,6 +43,11 @@ describe Spree::Promotion::Rules::OneUsePerUser, type: :model do
         subject
         expect(rule.eligibility_errors.full_messages.first).
           to eq "You need to login before applying this coupon code."
+      end
+      it "sets an error code" do
+        rule.eligible?(order)
+        expect(rule.eligibility_errors.details[:base].first[:error_code]).
+          to eq :no_user_specified
       end
     end
   end

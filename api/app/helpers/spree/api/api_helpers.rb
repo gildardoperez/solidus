@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Api
     module ApiHelpers
@@ -31,9 +33,6 @@ module Spree
         :promotion_attributes,
         :store_attributes,
         :store_credit_history_attributes,
-        :stock_transfer_attributes,
-        :transfer_item_attributes,
-        :transfer_item_variant_attributes,
         :variant_property_attributes
       ]
 
@@ -41,7 +40,7 @@ module Spree
 
       def required_fields_for(model)
         required_fields = model._validators.select do |_field, validations|
-          validations.any? { |v| v.is_a?(ActiveModel::Validations::PresenceValidator) }
+          validations.any? { |validation| validation.is_a?(ActiveModel::Validations::PresenceValidator) }
         end.map(&:first) # get fields that are invalid
         # Permalinks presence is validated, but are really automatically generated
         # Therefore we shouldn't tell API clients that they MUST send one through
@@ -52,9 +51,9 @@ module Spree
       end
 
       @@product_attributes = [
-        :id, :name, :description, :price, :display_price, :available_on,
+        :id, :name, :description, :available_on,
         :slug, :meta_description, :meta_keywords, :shipping_category_id,
-        :taxon_ids, :total_on_hand
+        :taxon_ids, :total_on_hand, :meta_title
       ]
 
       @@product_property_attributes = [
@@ -62,7 +61,7 @@ module Spree
       ]
 
       @@variant_attributes = [
-        :id, :name, :sku, :price, :weight, :height, :width, :depth, :is_master,
+        :id, :name, :sku, :weight, :height, :width, :depth, :is_master,
         :slug, :description, :track_inventory
       ]
 
@@ -115,8 +114,7 @@ module Spree
       ]
 
       @@inventory_unit_attributes = [
-        :id, :lock_version, :state, :variant_id, :shipment_id,
-        :return_authorization_id
+        :id, :state, :variant_id, :shipment_id
       ]
 
       @@return_authorization_attributes = [
@@ -135,8 +133,8 @@ module Spree
 
       @@adjustment_attributes = [
         :id, :source_type, :source_id, :adjustable_type, :adjustable_id,
-        :amount, :label, :promotion_code,
-        :locked, :eligible, :created_at, :updated_at
+        :amount, :label, :promotion_code_id,
+        :finalized, :eligible, :created_at, :updated_at
       ]
 
       @@creditcard_attributes = [
@@ -159,7 +157,7 @@ module Spree
       @@stock_movement_attributes = [:id, :quantity, :stock_item_id]
 
       @@stock_item_attributes = [
-        :id, :count_on_hand, :backorderable, :lock_version, :stock_location_id,
+        :id, :count_on_hand, :backorderable, :stock_location_id,
         :variant_id
       ]
 
@@ -170,26 +168,24 @@ module Spree
 
       @@store_attributes = [
         :id, :name, :url, :meta_description, :meta_keywords, :seo_title,
-        :mail_from_address, :default_currency, :code, :default
+        :mail_from_address, :default_currency, :code, :default, :available_locales
       ]
 
       @@store_credit_history_attributes = [
         :display_amount, :display_user_total_amount, :display_action,
-        :display_event_date
+        :display_event_date, :display_remaining_amount
       ]
 
-      @@stock_transfer_attributes = [:id, :number]
-
-      @@transfer_item_attributes = [:id, :expected_quantity, :received_quantity]
-
-      @@transfer_item_variant_attributes = []
-
       def variant_attributes
-        if @current_user_roles && @current_user_roles.include?("admin")
+        if @current_user_roles&.include?("admin")
           @@variant_attributes + [:cost_price]
         else
           @@variant_attributes
         end
+      end
+
+      def total_on_hand_for(object)
+        object.total_on_hand.finite? ? object.total_on_hand : nil
       end
     end
   end

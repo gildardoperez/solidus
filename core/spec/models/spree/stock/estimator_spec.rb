@@ -1,13 +1,15 @@
-require 'spec_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 module Spree
   module Stock
-    describe Estimator, type: :model do
+    RSpec.describe Estimator, type: :model do
       let(:shipping_rate) { 4.00 }
       let!(:shipping_method) { create(:shipping_method, cost: shipping_rate, currency: currency) }
       let(:package) do
-        build(:stock_package, contents: inventory_units.map { |i| ContentItem.new(i) }).tap do |p|
-          p.shipment = p.to_shipment
+        build(:stock_package, contents: inventory_units.map { |unit| ContentItem.new(unit) }).tap do |package|
+          package.shipment = package.to_shipment
         end
       end
       let(:order) { create(:order_with_line_items, shipping_method: shipping_method) }
@@ -59,7 +61,7 @@ module Spree
         end
 
         context "when the order's ship address is in a different zone" do
-          before { shipping_method.zones.each{ |z| z.members.delete_all } }
+          before { shipping_method.zones.each{ |zone| zone.members.delete_all } }
           it_should_behave_like "shipping rate doesn't match"
         end
 
@@ -83,7 +85,7 @@ module Spree
         end
 
         it "sorts shipping rates by cost" do
-          ShippingMethod.destroy_all
+          ShippingMethod.all.each(&:really_destroy!)
           create(:shipping_method, cost: 5)
           create(:shipping_method, cost: 3)
           create(:shipping_method, cost: 4)
@@ -92,7 +94,7 @@ module Spree
         end
 
         context "general shipping methods" do
-          before { Spree::ShippingMethod.destroy_all }
+          before { Spree::ShippingMethod.all.each(&:really_destroy!) }
 
           context 'with two shipping methods of different cost' do
             let!(:shipping_methods) do
@@ -125,7 +127,7 @@ module Spree
         end
 
         context "involves backend only shipping methods" do
-          before{ Spree::ShippingMethod.destroy_all }
+          before{ Spree::ShippingMethod.all.each(&:really_destroy!) }
           let!(:backend_method) { create(:shipping_method, available_to_users: false, cost: 0.00) }
           let!(:generic_method) { create(:shipping_method, cost: 5.00) }
 
@@ -139,13 +141,41 @@ module Spree
           end
         end
 
+        context "excludes shipping methods from other stores" do
+          before{ Spree::ShippingMethod.all.each(&:really_destroy!) }
+
+          let!(:other_method) do
+            create(
+              :shipping_method,
+              cost: 0.00,
+              stores: [build(:store, name: "Other")]
+            )
+          end
+
+          let!(:main_method) do
+            create(
+              :shipping_method,
+              cost: 5.00,
+              stores: [order.store]
+            )
+          end
+
+          it "does not return the other rate at all" do
+            expect(subject.shipping_rates(package).map(&:shipping_method_id)).to eq([main_method.id])
+          end
+
+          it "doesn't select the other rate even if it's more affordable" do
+            expect(subject.shipping_rates(package).map(&:selected)).to eq [true]
+          end
+        end
+
         context "includes tax adjustments if applicable" do
-          let(:zone) { create(:zone, countries: [order.tax_address.country])}
+          let(:zone) { create(:zone, countries: [order.tax_address.country]) }
 
           let!(:tax_rate) { create(:tax_rate, zone: zone) }
 
           before do
-            shipping_method.update!(tax_category: tax_rate.tax_category)
+            shipping_method.update!(tax_category: tax_rate.tax_categories.first)
           end
 
           it "links the shipping rate and the tax rate" do
@@ -165,44 +195,44 @@ module Spree
               Spree::ShippingRate.new
             end
           end
-          Spree::Config.shipping_rate_selector_class = selector_class
+          stub_spree_preferences(shipping_rate_selector_class: selector_class)
 
           subject.shipping_rates(package)
 
           expect(shipping_rate.selected).to eq(true)
-
-          Spree::Config.shipping_rate_selector_class = nil
         end
 
         it 'uses the configured shipping rate sorter' do
-          class Spree::Stock::TestSorter; end;
-          Spree::Config.shipping_rate_sorter_class = Spree::Stock::TestSorter
+          class Spree::Stock::TestSorter
+            def initialize(_rates)
+            end
+          end
+
+          stub_spree_preferences(shipping_rate_sorter_class: Spree::Stock::TestSorter)
 
           sorter = double(:sorter, sort: nil)
-          allow(Spree::Stock::TestSorter).to receive(:new).and_return(sorter)
+          allow(Spree::Stock::TestSorter).to receive(:new) { sorter }
 
           subject.shipping_rates(package)
 
           expect(sorter).to have_received(:sort)
-
-          Spree::Config.shipping_rate_sorter_class = nil
         end
 
         it 'uses the configured shipping rate taxer' do
-          class Spree::Tax::TestTaxer
-            def initialize
+          class Spree::Tax::TestTaxCalculator
+            def initialize(_order)
             end
 
-            def tax(_)
-              Spree::ShippingRate.new
+            def calculate(_shipping_rate)
+              [
+                Spree::Tax::ItemTax.new(label: "TAX", amount: 5)
+              ]
             end
           end
-          Spree::Config.shipping_rate_taxer_class = Spree::Tax::TestTaxer
 
-          shipping_rate = Spree::ShippingRate.new
-          allow(Spree::ShippingRate).to receive(:new).and_return(shipping_rate)
+          stub_spree_preferences(shipping_rate_tax_calculator_class: Spree::Tax::TestTaxCalculator)
 
-          expect(Spree::Tax::TestTaxer).to receive(:new).and_call_original
+          expect(Spree::Tax::TestTaxCalculator).to receive(:new).and_call_original
           subject.shipping_rates(package)
         end
       end

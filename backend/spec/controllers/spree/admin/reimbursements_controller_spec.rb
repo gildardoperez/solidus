@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe Spree::Admin::ReimbursementsController, type: :controller do
@@ -5,6 +7,13 @@ describe Spree::Admin::ReimbursementsController, type: :controller do
 
   let!(:default_refund_reason) do
     Spree::RefundReason.find_or_create_by!(name: Spree::RefundReason::RETURN_PROCESSING_REASON, mutable: false)
+  end
+
+  let(:user) { stub_model(Spree::LegacyUser, has_spree_role?: true, id: 1) }
+
+  before do
+    allow_any_instance_of(described_class).to receive(:try_spree_current_user).
+      and_return(user)
   end
 
   describe '#edit' do
@@ -38,6 +47,10 @@ describe Spree::Admin::ReimbursementsController, type: :controller do
     it 'creates the reimbursement' do
       expect { subject }.to change { order.reimbursements.count }.by(1)
       expect(assigns(:reimbursement).return_items.to_a).to eq customer_return.return_items.to_a
+    end
+
+    it 'order is recalculated' do
+      expect { subject }.to change { order.reload.payment_state }.from('paid').to('credit_owed')
     end
 
     it 'redirects to the edit page' do

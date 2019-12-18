@@ -1,10 +1,11 @@
+# frozen_string_literal: true
+
 unless defined?(Spree::InstallGenerator)
   require 'generators/spree/install/install_generator'
 end
 
 require 'generators/spree/dummy/dummy_generator'
 
-desc "Generates a dummy app for testing"
 namespace :common do
   task :test_app, :user_class do |_t, args|
     args.with_defaults(user_class: "Spree::LegacyUser")
@@ -23,7 +24,7 @@ namespace :common do
     begin
       require "generators/#{ENV['LIB_NAME']}/install/install_generator"
       puts 'Running extension installation generator...'
-      "#{ENV['LIB_NAME'].camelize}::Generators::InstallGenerator".constantize.start(["--auto-run-migrations"])
+      "#{ENV['LIB_NAMESPACE'] || ENV['LIB_NAME'].camelize}::Generators::InstallGenerator".constantize.start(["--auto-run-migrations"])
     rescue LoadError
       # No extension generator to run
     end

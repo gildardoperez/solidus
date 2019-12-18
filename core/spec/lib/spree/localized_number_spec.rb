@@ -1,6 +1,9 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-describe Spree::LocalizedNumber do
+require 'spec_helper'
+require 'spree/localized_number'
+
+RSpec.describe Spree::LocalizedNumber do
   context ".parse" do
     before do
       I18n.enforce_available_locales = false
@@ -11,6 +14,12 @@ describe Spree::LocalizedNumber do
     after do
       I18n.locale = I18n.default_locale
       I18n.enforce_available_locales = true
+    end
+
+    context "with an empty string" do
+      it "parses to 0" do
+        expect(subject.class.parse("")).to eq 0.0
+      end
     end
 
     context "with decimal point" do

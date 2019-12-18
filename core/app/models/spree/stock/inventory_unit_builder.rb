@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module Stock
     class InventoryUnitBuilder
@@ -11,8 +13,7 @@ module Spree
             Spree::InventoryUnit.new(
               pending: true,
               variant: line_item.variant,
-              line_item: line_item,
-              order: @order
+              line_item: line_item
             )
           end
         end

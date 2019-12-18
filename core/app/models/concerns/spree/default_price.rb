@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Spree
   module DefaultPrice
     extend ActiveSupport::Concern
@@ -19,7 +21,7 @@ module Spree
     delegate :price=, to: :find_or_build_default_price
 
     def has_default_price?
-      !default_price.nil?
+      default_price.present? && !default_price.discarded?
     end
   end
 end
